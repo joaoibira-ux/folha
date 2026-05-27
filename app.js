@@ -10,15 +10,16 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "2.6";
+const VERSAO = "2.7";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
-let entradas           = [];
-let funcionarioAtual   = null;
-let servicosSelecionados = new Map(); // key "localId::svidx" → { local, servico }
-let locaisCache        = {};
-let servicosCache      = [];
+let entradas             = [];
+let funcionarioAtual     = null;
+let servicosSelecionados = new Map();
+let locaisCache          = {};
+let servicosCache        = [];
+let folhaAbertaId        = null; // ID do documento da folha em andamento
 
 // ── Navegação ──────────────────────────────────────────────
 function mostrarView(id) {
@@ -64,6 +65,42 @@ function getMdo(nomeServico) {
 db.collection('servicos').onSnapshot(snap => {
   servicosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 });
+
+// ── Verifica folha em andamento na abertura ────────────────
+function verificarFolhaExistente() {
+  db.collection('locais').get().then(snap => {
+    const temAmarelo = snap.docs.some(doc =>
+      (doc.data().servicos || []).some(s => s.status === 'em_pagamento')
+    );
+    if (!temAmarelo) return;
+
+    db.collection('folhas').orderBy('criadoEm', 'desc').limit(1).get().then(fSnap => {
+      if (fSnap.empty) return;
+      const doc   = fSnap.docs[0];
+      const folha = doc.data();
+      folhaAbertaId = doc.id;
+
+      entradas = [];
+      (folha.grupos || []).forEach(g => {
+        (g.itens || []).forEach(item => {
+          entradas.push({
+            funcionario:      g.funcionario,
+            firestoreLocalId: item.firestoreLocalId || '',
+            localId:          item.localId,
+            servico:          item.servico,
+            valor:            Number(item.valor)
+          });
+        });
+      });
+
+      renderizarFolha();
+      atualizarHeader();
+      mostrarView('view-folha');
+    });
+  });
+}
+
+verificarFolhaExistente();
 
 // ── View Funcionários ──────────────────────────────────────
 db.collection('funcionarios').orderBy('nome').onSnapshot(snap => {
@@ -325,12 +362,13 @@ function fecharFolha() {
     status:    'fechada',
     totalGeral,
     grupos: [...grupos.values()].map(g => ({
-      funcionario: { nome: g.funcionario.nome, cargo: g.funcionario.cargo || '' },
+      funcionario: { id: g.funcionario.id || '', nome: g.funcionario.nome, cargo: g.funcionario.cargo || '' },
       subtotal:    g.itens.reduce((acc, e) => acc + Number(e.valor), 0),
       itens:       g.itens.map(e => ({
-        localId: e.localId,
-        servico: nomeAbrev(e.servico),
-        valor:   Number(e.valor)
+        firestoreLocalId: e.firestoreLocalId || '',
+        localId:          e.localId,
+        servico:          nomeAbrev(e.servico),
+        valor:            Number(e.valor)
       }))
     }))
   };
@@ -344,10 +382,13 @@ function fecharFolha() {
     locaisParaAtualizar.get(e.firestoreLocalId).add(e.servico);
   });
 
-  // Monta o batch: salva folha + atualiza status dos serviços
+  // Monta o batch: salva/atualiza folha + atualiza status dos serviços
   const batch = db.batch();
 
-  batch.set(db.collection('folhas').doc(), folhaDoc);
+  const folhaRef = folhaAbertaId
+    ? db.collection('folhas').doc(folhaAbertaId)
+    : db.collection('folhas').doc();
+  batch.set(folhaRef, folhaDoc);
 
   locaisParaAtualizar.forEach((servicoNomes, firestoreId) => {
     const local = locaisCache[firestoreId];
@@ -360,12 +401,13 @@ function fecharFolha() {
 
   batch.commit()
     .then(() => {
+      folhaAbertaId = folhaRef.id;
       entradas = [];
       atualizarHeader();
       btnFechar.disabled = false;
       btnFechar.textContent = 'Fechar Folha';
       mostrarView('view-funcionarios');
-      alert('Folha fechada! Serviços marcados em amarelo no mapa.');
+      alert('Folha salva! Serviços marcados em amarelo no mapa.');
     })
     .catch(() => {
       btnFechar.disabled = false;
