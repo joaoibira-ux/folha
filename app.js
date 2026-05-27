@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "2.8";
+const VERSAO = "2.9";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -69,10 +69,14 @@ db.collection('servicos').onSnapshot(snap => {
 // ── Verifica folha em andamento na abertura ────────────────
 function verificarFolhaExistente() {
   db.collection('locais').get().then(snap => {
-    const temAmarelo = snap.docs.some(doc =>
-      (doc.data().servicos || []).some(s => s.status === 'em_pagamento')
-    );
-    if (!temAmarelo) return;
+    // Constrói set dos serviços que ainda estão em_pagamento
+    const emPagamentoSet = new Set();
+    snap.docs.forEach(doc => {
+      (doc.data().servicos || []).forEach(s => {
+        if (s.status === 'em_pagamento') emPagamentoSet.add(`${doc.id}:${s.nome}`);
+      });
+    });
+    if (!emPagamentoSet.size) return;
 
     db.collection('folhas').orderBy('criadoEm', 'desc').limit(1).get().then(fSnap => {
       if (fSnap.empty) return;
@@ -83,6 +87,8 @@ function verificarFolhaExistente() {
       entradas = [];
       (folha.grupos || []).forEach(g => {
         (g.itens || []).forEach(item => {
+          // Só inclui se o serviço ainda está em_pagamento no locais
+          if (!emPagamentoSet.has(`${item.firestoreLocalId}:${item.servico}`)) return;
           entradas.push({
             funcionario:      g.funcionario,
             firestoreLocalId: item.firestoreLocalId || '',
@@ -93,6 +99,7 @@ function verificarFolhaExistente() {
         });
       });
 
+      if (!entradas.length) return;
       renderizarFolha();
       atualizarHeader();
       mostrarView('view-folha');
