@@ -10,6 +10,9 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+const VERSAO = "1.1";
+document.querySelector("header span").textContent = `Folha de Pagamento v${VERSAO}`;
+
 // ── Estado ─────────────────────────────────────────────────
 let entradas    = [];
 let servicoAtual = null;
