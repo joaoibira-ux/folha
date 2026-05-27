@@ -10,13 +10,25 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "1.2";
+const VERSAO = "1.3";
 document.querySelector("header span").textContent = `Folha de Pagamento v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
-let entradas    = [];
-let servicoAtual = null;
-let locaisCache = {};
+let entradas      = [];
+let servicoAtual  = null;
+let locaisCache   = {};
+let servicosCache = [];
+
+// Carrega tabela de serviços (mdo, medicao, material)
+db.collection('servicos').onSnapshot(snap => {
+  servicosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+});
+
+function getMdo(nomeServico) {
+  const ordem = ordemServico(nomeServico);
+  const match = servicosCache.find(s => ordemServico(s.nome) === ordem);
+  return match ? (match.mdo || 0) : 0;
+}
 
 // ── Navegação ──────────────────────────────────────────────
 function mostrarView(id) {
@@ -147,10 +159,11 @@ function onServicoClick(el) {
 
 // ── View Funcionários ──────────────────────────────────────
 function abrirFuncionarios(local, servico) {
-  servicoAtual = { local, servico };
+  const mdo = getMdo(servico.nome);
+  servicoAtual = { local, servico, mdo };
 
-  const valorTexto = servico.valorPago != null
-    ? `<span class="valor-servico">R$ ${Number(servico.valorPago).toFixed(2)}</span>`
+  const valorTexto = mdo > 0
+    ? `<span class="valor-servico">R$ ${mdo.toFixed(2)}</span>`
     : '';
 
   document.getElementById('servico-selecionado').innerHTML =
@@ -187,7 +200,7 @@ function adicionarEntrada(funcionario) {
     funcionario,
     localId: servicoAtual.local.identificacao,
     servico: servicoAtual.servico.nome,
-    valor:   servicoAtual.servico.valorPago || 0
+    valor:   servicoAtual.mdo
   });
   renderizarFolha();
   atualizarHeader();
