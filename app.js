@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "2.5";
+const VERSAO = "2.6";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -138,7 +138,7 @@ function renderAptCell(local) {
       ${servs.map((s, i) => {
         const key = `${local.id}::${i}`;
         const sel = servicosSelecionados.has(key) ? ' selecionado' : '';
-        const cursor = s.status === 'concluido' ? ' nao-clicavel' : '';
+        const cursor = (s.status === 'concluido' || s.status === 'em_pagamento') ? ' nao-clicavel' : '';
         return `<div class="apt-serv ${s.status}${sel}${cursor}"
                      data-localid="${escHtml(local.id)}"
                      data-svidx="${i}"
@@ -188,7 +188,7 @@ function onServicoClick(el) {
   const local    = locaisCache[el.dataset.localid];
   const servicos = [...(local.servicos || [])].sort((a, b) => ordemServico(a.nome) - ordemServico(b.nome));
   const servico  = servicos[parseInt(el.dataset.svidx)];
-  if (servico.status === 'concluido') return;
+  if (servico.status === 'concluido' || servico.status === 'em_pagamento') return;
 
   const key = `${el.dataset.localid}::${el.dataset.svidx}`;
   if (servicosSelecionados.has(key)) {
@@ -215,10 +215,11 @@ function confirmarSelecao() {
 
   servicosSelecionados.forEach(({ local, servico }) => {
     entradas.push({
-      funcionario: funcionarioAtual,
-      localId:     local.identificacao,
-      servico:     servico.nome,
-      valor:       getMdo(servico.nome)
+      funcionario:      funcionarioAtual,
+      firestoreLocalId: local.id,
+      localId:          local.identificacao,
+      servico:          servico.nome,
+      valor:            getMdo(servico.nome)
     });
   });
 
@@ -300,7 +301,7 @@ function imprimirFolha() {
   setTimeout(() => window.print(), 200);
 }
 
-// ── Fechar Folha → salva no Firestore ─────────────────────
+// ── Fechar Folha → salva no Firestore + marca serviços ────
 function fecharFolha() {
   if (!entradas.length) return;
 
@@ -308,7 +309,7 @@ function fecharFolha() {
   btnFechar.disabled = true;
   btnFechar.textContent = 'Salvando...';
 
-  // Agrupa por funcionário (mesma lógica da renderização)
+  // Agrupa por funcionário para o documento da folha
   const grupos = new Map();
   entradas.forEach(e => {
     const key = e.funcionario.id || e.funcionario.nome;
@@ -318,7 +319,7 @@ function fecharFolha() {
 
   const totalGeral = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
 
-  const doc = {
+  const folhaDoc = {
     data:       new Date().toLocaleDateString('pt-BR'),
     criadoEm:  firebase.firestore.FieldValue.serverTimestamp(),
     status:    'fechada',
@@ -334,14 +335,37 @@ function fecharFolha() {
     }))
   };
 
-  db.collection('folhas').add(doc)
+  // Agrupa serviços a marcar por localId do Firestore
+  const locaisParaAtualizar = new Map();
+  entradas.forEach(e => {
+    if (!locaisParaAtualizar.has(e.firestoreLocalId)) {
+      locaisParaAtualizar.set(e.firestoreLocalId, new Set());
+    }
+    locaisParaAtualizar.get(e.firestoreLocalId).add(e.servico);
+  });
+
+  // Monta o batch: salva folha + atualiza status dos serviços
+  const batch = db.batch();
+
+  batch.set(db.collection('folhas').doc(), folhaDoc);
+
+  locaisParaAtualizar.forEach((servicoNomes, firestoreId) => {
+    const local = locaisCache[firestoreId];
+    if (!local) return;
+    const novosServicos = (local.servicos || []).map(s =>
+      servicoNomes.has(s.nome) ? { ...s, status: 'em_pagamento' } : s
+    );
+    batch.update(db.collection('locais').doc(firestoreId), { servicos: novosServicos });
+  });
+
+  batch.commit()
     .then(() => {
       entradas = [];
       atualizarHeader();
       btnFechar.disabled = false;
       btnFechar.textContent = 'Fechar Folha';
       mostrarView('view-funcionarios');
-      alert('Folha fechada e salva com sucesso!');
+      alert('Folha fechada! Serviços marcados em amarelo no mapa.');
     })
     .catch(() => {
       btnFechar.disabled = false;
