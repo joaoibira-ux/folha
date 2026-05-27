@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "2.9";
+const VERSAO = "3.0";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -224,6 +224,22 @@ function render(data) {
 
 db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
   render(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+
+  // Atualiza folha em tempo real se estiver visível
+  if (entradas.length && document.getElementById('view-folha').classList.contains('ativa')) {
+    const emPagamentoSet = new Set();
+    snap.docs.forEach(doc => {
+      (doc.data().servicos || []).forEach(s => {
+        if (s.status === 'em_pagamento') emPagamentoSet.add(`${doc.id}:${s.nome}`);
+      });
+    });
+    const antes = entradas.length;
+    entradas = entradas.filter(e => emPagamentoSet.has(`${e.firestoreLocalId}:${e.servico}`));
+    if (entradas.length !== antes) {
+      renderizarFolha();
+      atualizarHeader();
+    }
+  }
 }, () => {
   document.getElementById("mapa").innerHTML = '<p class="empty">Erro ao conectar.</p>';
 });
