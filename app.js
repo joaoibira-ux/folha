@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "2.2";
+const VERSAO = "2.3";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -226,41 +226,61 @@ function confirmarSelecao() {
   mostrarView('view-folha');
 }
 
+function fmtMoeda(v) {
+  return 'R$ ' + Number(v).toFixed(2).replace('.', ',');
+}
+
 // ── View Folha ─────────────────────────────────────────────
 function renderizarFolha() {
-  const total = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
-  const hoje  = new Date().toLocaleDateString('pt-BR');
+  const hoje = new Date().toLocaleDateString('pt-BR');
 
-  const linhas = entradas.map((e, i) => `
-    <tr>
-      <td class="td-num">${i + 1}</td>
-      <td>${escHtml(e.funcionario.nome)}</td>
-      <td>${escHtml(e.funcionario.cargo || '—')}</td>
-      <td>${escHtml(e.localId)}</td>
-      <td>${escHtml(nomeAbrev(e.servico))}</td>
-      <td class="td-valor">R$ ${Number(e.valor).toFixed(2)}</td>
-    </tr>
-  `).join('');
+  // Agrupa por funcionário mantendo a ordem de inserção
+  const grupos = new Map();
+  entradas.forEach(e => {
+    const key = e.funcionario.id || e.funcionario.nome;
+    if (!grupos.has(key)) grupos.set(key, { funcionario: e.funcionario, itens: [] });
+    grupos.get(key).itens.push(e);
+  });
+
+  const totalGeral = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
+
+  const gruposHtml = [...grupos.values()].map(g => {
+    const subtotal = g.itens.reduce((acc, e) => acc + Number(e.valor), 0);
+    const linhas = g.itens.map(e => `
+      <tr>
+        <td>${escHtml(e.localId)}</td>
+        <td>${escHtml(nomeAbrev(e.servico))}</td>
+        <td class="td-valor">${fmtMoeda(e.valor)}</td>
+      </tr>`).join('');
+
+    return `
+      <div class="grupo-func">
+        <div class="grupo-header">
+          <span class="grupo-nome">${escHtml(g.funcionario.nome)}</span>
+          <span class="grupo-cargo ${(g.funcionario.cargo||'').toLowerCase()}">${escHtml(g.funcionario.cargo||'')}</span>
+        </div>
+        <table class="folha-tabela">
+          <thead><tr><th>Local</th><th>Serviço</th><th>Valor</th></tr></thead>
+          <tbody>${linhas}</tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2" class="td-sub-label">Subtotal</td>
+              <td class="td-sub-valor">${fmtMoeda(subtotal)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>`;
+  }).join('');
 
   document.getElementById('folha-documento').innerHTML = `
     <div class="folha-paper">
       <div class="folha-titulo">FOLHA DE PAGAMENTO DA PRODUÇÃO</div>
       <div class="folha-data">Emitida em ${hoje}</div>
-      <table class="folha-tabela">
-        <thead>
-          <tr>
-            <th>#</th><th>Funcionário</th><th>Cargo</th>
-            <th>Local</th><th>Serviço</th><th>Valor</th>
-          </tr>
-        </thead>
-        <tbody>${linhas}</tbody>
-        <tfoot>
-          <tr>
-            <td colspan="5" class="td-total-label">TOTAL</td>
-            <td class="td-total-valor">R$ ${total.toFixed(2)}</td>
-          </tr>
-        </tfoot>
-      </table>
+      ${gruposHtml}
+      <div class="total-geral">
+        <span>TOTAL GERAL</span>
+        <span>${fmtMoeda(totalGeral)}</span>
+      </div>
       <div class="folha-rodape">Toque para adicionar outro funcionário ↩</div>
     </div>
   `;
