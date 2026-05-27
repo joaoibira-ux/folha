@@ -279,3 +279,7 @@ function imprimirFolha() {
   mostrarView('view-folha');
   setTimeout(() => window.print(), 200);
 }
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js');
+}
