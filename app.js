@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "3.1";
+const VERSAO = "3.2";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -402,13 +402,13 @@ function fecharFolha() {
     }))
   };
 
-  // Agrupa serviços a marcar por localId do Firestore
+  // Agrupa serviços a marcar por localId do Firestore: servicoNome → funcionario
   const locaisParaAtualizar = new Map();
   entradas.forEach(e => {
     if (!locaisParaAtualizar.has(e.firestoreLocalId)) {
-      locaisParaAtualizar.set(e.firestoreLocalId, new Set());
+      locaisParaAtualizar.set(e.firestoreLocalId, new Map());
     }
-    locaisParaAtualizar.get(e.firestoreLocalId).add(e.servico);
+    locaisParaAtualizar.get(e.firestoreLocalId).set(e.servico, e.funcionario);
   });
 
   // Monta o batch: salva/atualiza folha + atualiza status dos serviços
@@ -419,12 +419,14 @@ function fecharFolha() {
     : db.collection('folhas').doc();
   batch.set(folhaRef, folhaDoc);
 
-  locaisParaAtualizar.forEach((servicoNomes, firestoreId) => {
+  locaisParaAtualizar.forEach((servicoFuncMap, firestoreId) => {
     const local = locaisCache[firestoreId];
     if (!local) return;
-    const novosServicos = (local.servicos || []).map(s =>
-      servicoNomes.has(s.nome) ? { ...s, status: 'em_pagamento' } : s
-    );
+    const novosServicos = (local.servicos || []).map(s => {
+      if (!servicoFuncMap.has(s.nome)) return s;
+      const func = servicoFuncMap.get(s.nome);
+      return { ...s, status: 'em_pagamento', funcionario: { id: func.id || '', nome: func.nome } };
+    });
     batch.update(db.collection('locais').doc(firestoreId), { servicos: novosServicos });
   });
 
