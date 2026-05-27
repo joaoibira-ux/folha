@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "2.4";
+const VERSAO = "2.5";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -282,7 +282,6 @@ function renderizarFolha() {
         <span>TOTAL GERAL</span>
         <span>${fmtMoeda(totalGeral)}</span>
       </div>
-      <div class="folha-rodape">Toque para adicionar outro funcionário ↩</div>
     </div>
   `;
 }
@@ -299,6 +298,56 @@ function imprimirFolha() {
   renderizarFolha();
   mostrarView('view-folha');
   setTimeout(() => window.print(), 200);
+}
+
+// ── Fechar Folha → salva no Firestore ─────────────────────
+function fecharFolha() {
+  if (!entradas.length) return;
+
+  const btnFechar = document.querySelector('.btn-fechar-folha');
+  btnFechar.disabled = true;
+  btnFechar.textContent = 'Salvando...';
+
+  // Agrupa por funcionário (mesma lógica da renderização)
+  const grupos = new Map();
+  entradas.forEach(e => {
+    const key = e.funcionario.id || e.funcionario.nome;
+    if (!grupos.has(key)) grupos.set(key, { funcionario: e.funcionario, itens: [] });
+    grupos.get(key).itens.push(e);
+  });
+
+  const totalGeral = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
+
+  const doc = {
+    data:       new Date().toLocaleDateString('pt-BR'),
+    criadoEm:  firebase.firestore.FieldValue.serverTimestamp(),
+    status:    'fechada',
+    totalGeral,
+    grupos: [...grupos.values()].map(g => ({
+      funcionario: { nome: g.funcionario.nome, cargo: g.funcionario.cargo || '' },
+      subtotal:    g.itens.reduce((acc, e) => acc + Number(e.valor), 0),
+      itens:       g.itens.map(e => ({
+        localId: e.localId,
+        servico: nomeAbrev(e.servico),
+        valor:   Number(e.valor)
+      }))
+    }))
+  };
+
+  db.collection('folhas').add(doc)
+    .then(() => {
+      entradas = [];
+      atualizarHeader();
+      btnFechar.disabled = false;
+      btnFechar.textContent = 'Fechar Folha';
+      mostrarView('view-funcionarios');
+      alert('Folha fechada e salva com sucesso!');
+    })
+    .catch(() => {
+      btnFechar.disabled = false;
+      btnFechar.textContent = 'Fechar Folha';
+      alert('Erro ao salvar. Tente novamente.');
+    });
 }
 
 if ('serviceWorker' in navigator) {

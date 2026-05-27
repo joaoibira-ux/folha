@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Folha de Pagamento da Produção</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <link rel="stylesheet" href="style.css?v=2.4">
+  <link rel="stylesheet" href="style.css?v=2.5">
 </head>
 <body>
 
@@ -37,10 +37,14 @@
   <!-- View 3: Folha Preview -->
   <div id="view-folha" class="view">
     <div id="folha-documento" onclick="mostrarView('view-funcionarios')"></div>
+    <div class="folha-acoes">
+      <p class="instrucao">Toque na folha para adicionar mais</p>
+      <button class="btn-fechar-folha" onclick="fecharFolha()">Fechar Folha</button>
+    </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="app.js?v=2.4"></script>
+  <script src="app.js?v=2.5"></script>
 </body>
 </html>

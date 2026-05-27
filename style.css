@@ -413,12 +413,32 @@ header {
   font-size: 0.9rem;
 }
 
-.folha-rodape {
-  text-align: center;
-  margin-top: 12px;
-  font-size: 0.68rem;
-  color: #ccc;
+.folha-acoes {
+  max-width: 560px;
+  margin: 12px auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
 }
+
+.btn-fechar-folha {
+  width: 100%;
+  background: #b71c1c;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-fechar-folha:hover  { background: #c62828; }
+.btn-fechar-folha:active { background: #7f0000; }
+.btn-fechar-folha:disabled { background: #ccc; cursor: default; }
 
 /* ── IMPRESSÃO ───────────────────────────────────────────── */
 @media print {
