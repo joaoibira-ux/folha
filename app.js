@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "2.7";
+const VERSAO = "2.8";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -401,19 +401,28 @@ function fecharFolha() {
 
   batch.commit()
     .then(() => {
-      folhaAbertaId = folhaRef.id;
+      folhaAbertaId = null;
       entradas = [];
       atualizarHeader();
       btnFechar.disabled = false;
       btnFechar.textContent = 'Fechar Folha';
-      mostrarView('view-funcionarios');
-      alert('Folha salva! Serviços marcados em amarelo no mapa.');
+      mostrarSucesso();
     })
     .catch(() => {
       btnFechar.disabled = false;
       btnFechar.textContent = 'Fechar Folha';
       alert('Erro ao salvar. Tente novamente.');
     });
+}
+
+function mostrarSucesso() {
+  document.body.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                height:100dvh;background:#1a3322;color:#fff;gap:16px;">
+      <div style="font-size:3rem;">✓</div>
+      <div style="font-size:1.2rem;font-weight:700;">Folha fechada!</div>
+    </div>`;
+  setTimeout(() => window.close(), 1500);
 }
 
 if ('serviceWorker' in navigator) {
