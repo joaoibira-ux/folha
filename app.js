@@ -10,8 +10,8 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "2.0";
-document.querySelector("header span").textContent = `Folha de Pagamento v${VERSAO}`;
+const VERSAO = "2.1";
+document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
 let entradas           = [];
@@ -244,7 +244,7 @@ function renderizarFolha() {
 
   document.getElementById('folha-documento').innerHTML = `
     <div class="folha-paper">
-      <div class="folha-titulo">FOLHA DE PAGAMENTO</div>
+      <div class="folha-titulo">FOLHA DE PAGAMENTO DA PRODUÇÃO</div>
       <div class="folha-data">Emitida em ${hoje}</div>
       <table class="folha-tabela">
         <thead>
