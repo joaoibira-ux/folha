@@ -172,11 +172,22 @@ header {
   background: #a5d6a7;
   color: #1b5e20;
   font-weight: 600;
-  cursor: default;
-  opacity: 0.7;
 }
 
-.apt-serv.concluido:hover { filter: none; }
+.apt-serv.nao-clicavel {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.apt-serv.nao-clicavel:hover { filter: none; }
+
+.apt-serv.selecionado {
+  background: #1a3322 !important;
+  color: #fff !important;
+  font-weight: 700;
+}
+
+.leg-cor.selecionado { background: #1a3322; border-color: #1a3322; }
 
 .empty {
   text-align: center;
@@ -188,12 +199,14 @@ header {
 /* ── VIEW FUNCIONÁRIOS ───────────────────────────────────── */
 #view-funcionarios { padding: 14px 16px; }
 
-.view-header {
+/* ── BARRA DO MAPA ───────────────────────────────────────── */
+.mapa-barra {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
   flex-shrink: 0;
 }
 
@@ -204,15 +217,38 @@ header {
   cursor: pointer;
   color: #1a3322;
   padding: 0 4px;
+  flex-shrink: 0;
 }
 
-#servico-selecionado { font-size: 0.9rem; color: #444; }
-
-.valor-servico {
+.func-atual {
+  flex: 1;
   font-weight: 700;
-  color: #1b5e20;
-  margin-left: 4px;
+  font-size: 0.95rem;
+  color: #1a3322;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
+.btn-ok {
+  background: #1a3322;
+  color: #fff;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.btn-ok:disabled {
+  background: #ccc;
+  cursor: default;
+}
+
+.btn-ok:not(:disabled):hover { background: #2a5c42; }
 
 .btn-funcionario {
   display: flex;
@@ -232,7 +268,19 @@ header {
 .btn-funcionario:hover { background: #e8f5e9; }
 
 .func-nome { font-weight: 600; font-size: 0.95rem; }
-.func-cargo { font-size: 0.8rem; color: #999; }
+
+.func-cargo {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #eee;
+  color: #666;
+  text-transform: capitalize;
+}
+
+.func-cargo.pintor    { background: #fff3e0; color: #e65100; }
+.func-cargo.raspador  { background: #e8f5e9; color: #2e7d32; }
 .carregando, .vazio { text-align: center; color: #999; padding: 30px; font-size: 0.9rem; }
 
 /* ── VIEW FOLHA ──────────────────────────────────────────── */

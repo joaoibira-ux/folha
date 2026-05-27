@@ -10,25 +10,15 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "1.3";
+const VERSAO = "2.0";
 document.querySelector("header span").textContent = `Folha de Pagamento v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
-let entradas      = [];
-let servicoAtual  = null;
-let locaisCache   = {};
-let servicosCache = [];
-
-// Carrega tabela de serviços (mdo, medicao, material)
-db.collection('servicos').onSnapshot(snap => {
-  servicosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-});
-
-function getMdo(nomeServico) {
-  const ordem = ordemServico(nomeServico);
-  const match = servicosCache.find(s => ordemServico(s.nome) === ordem);
-  return match ? (match.mdo || 0) : 0;
-}
+let entradas           = [];
+let funcionarioAtual   = null;
+let servicosSelecionados = new Map(); // key "localId::svidx" → { local, servico }
+let locaisCache        = {};
+let servicosCache      = [];
 
 // ── Navegação ──────────────────────────────────────────────
 function mostrarView(id) {
@@ -36,7 +26,7 @@ function mostrarView(id) {
   document.getElementById(id).classList.add('ativa');
 }
 
-// ── Utilitários (idênticos ao mapa) ───────────────────────
+// ── Utilitários ────────────────────────────────────────────
 function escHtml(s) {
   return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
@@ -64,7 +54,53 @@ function parseId(id) {
   return m ? { block: m[1], num: parseInt(m[2]) } : null;
 }
 
-// ── Agrupamento (idêntico ao mapa) ─────────────────────────
+function getMdo(nomeServico) {
+  const ordem = ordemServico(nomeServico);
+  const match = servicosCache.find(s => ordemServico(s.nome) === ordem);
+  return match ? (match.mdo || 0) : 0;
+}
+
+// ── Coleção servicos ───────────────────────────────────────
+db.collection('servicos').onSnapshot(snap => {
+  servicosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+});
+
+// ── View Funcionários ──────────────────────────────────────
+db.collection('funcionarios').orderBy('nome').onSnapshot(snap => {
+  const lista = document.getElementById('lista-funcionarios');
+  lista.innerHTML = '';
+
+  const cargosValidos = ['pintor', 'raspador'];
+  const docs = snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(f => cargosValidos.some(c => (f.cargo || '').toLowerCase().includes(c)));
+
+  if (!docs.length) {
+    lista.innerHTML = '<p class="vazio">Nenhum pintor ou raspador cadastrado.</p>';
+    return;
+  }
+
+  docs.forEach(func => {
+    const btn = document.createElement('button');
+    btn.className = 'btn-funcionario';
+    btn.innerHTML = `
+      <span class="func-nome">${escHtml(func.nome)}</span>
+      <span class="func-cargo ${(func.cargo||'').toLowerCase()}">${escHtml(func.cargo || '')}</span>
+    `;
+    btn.onclick = () => selecionarFuncionario(func);
+    lista.appendChild(btn);
+  });
+});
+
+function selecionarFuncionario(func) {
+  funcionarioAtual = func;
+  servicosSelecionados.clear();
+  document.getElementById('func-atual').textContent = func.nome;
+  atualizarBtnOk();
+  mostrarView('view-mapa');
+}
+
+// ── View Mapa ──────────────────────────────────────────────
 function groupByBloco(data) {
   const blocos = {};
   data.forEach(local => {
@@ -90,7 +126,6 @@ function buildCols(wing) {
   return cols;
 }
 
-// ── Renderização de célula (onclick adaptado para folha) ───
 function renderAptCell(local) {
   if (!local) return `<div class="apt-vazio"></div>`;
   locaisCache[local.id] = local;
@@ -99,12 +134,15 @@ function renderAptCell(local) {
   return `
     <div class="apt-cell">
       <div class="apt-header">Apt: ${escHtml(numPart)}</div>
-      ${servs.map((s, i) =>
-        `<div class="apt-serv ${s.status}"
-              data-localid="${escHtml(local.id)}"
-              data-svidx="${i}"
-              onclick="onServicoClick(this)">${nomeAbrev(s.nome)}</div>`
-      ).join("")}
+      ${servs.map((s, i) => {
+        const key = `${local.id}::${i}`;
+        const sel = servicosSelecionados.has(key) ? ' selecionado' : '';
+        const cursor = s.status === 'concluido' ? ' nao-clicavel' : '';
+        return `<div class="apt-serv ${s.status}${sel}${cursor}"
+                     data-localid="${escHtml(local.id)}"
+                     data-svidx="${i}"
+                     onclick="onServicoClick(this)">${nomeAbrev(s.nome)}</div>`;
+      }).join("")}
     </div>`;
 }
 
@@ -120,12 +158,10 @@ function renderWing(cols) {
 function render(data) {
   const blocos = groupByBloco(data);
   const letras = Object.keys(blocos).sort();
-
   if (!letras.length) {
     document.getElementById("mapa").innerHTML = '<p class="empty">Nenhum local cadastrado.</p>';
     return;
   }
-
   document.getElementById("mapa").innerHTML = letras.map(letra => {
     const { ground, upper } = blocos[letra];
     const gCols = buildCols(ground);
@@ -141,72 +177,56 @@ function render(data) {
   }).join("");
 }
 
-// ── Listener Firestore (idêntico ao mapa) ─────────────────
 db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
   render(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-}, err => {
+}, () => {
   document.getElementById("mapa").innerHTML = '<p class="empty">Erro ao conectar.</p>';
 });
 
-// ── Click no serviço → abre funcionários ──────────────────
 function onServicoClick(el) {
   const local    = locaisCache[el.dataset.localid];
   const servicos = [...(local.servicos || [])].sort((a, b) => ordemServico(a.nome) - ordemServico(b.nome));
   const servico  = servicos[parseInt(el.dataset.svidx)];
   if (servico.status === 'concluido') return;
-  abrirFuncionarios(local, servico);
+
+  const key = `${el.dataset.localid}::${el.dataset.svidx}`;
+  if (servicosSelecionados.has(key)) {
+    servicosSelecionados.delete(key);
+  } else {
+    servicosSelecionados.set(key, { local, servico });
+  }
+
+  // atualiza visual sem re-renderizar tudo
+  el.classList.toggle('selecionado', servicosSelecionados.has(key));
+  atualizarBtnOk();
 }
 
-// ── View Funcionários ──────────────────────────────────────
-function abrirFuncionarios(local, servico) {
-  const mdo = getMdo(servico.nome);
-  servicoAtual = { local, servico, mdo };
+function atualizarBtnOk() {
+  const btn = document.getElementById('btn-ok');
+  const n = servicosSelecionados.size;
+  btn.textContent = n > 0 ? `OK (${n})` : 'OK';
+  btn.disabled = n === 0;
+}
 
-  const valorTexto = mdo > 0
-    ? `<span class="valor-servico">R$ ${mdo.toFixed(2)}</span>`
-    : '';
+// ── Confirmar seleção → adiciona na folha ──────────────────
+function confirmarSelecao() {
+  if (!servicosSelecionados.size) return;
 
-  document.getElementById('servico-selecionado').innerHTML =
-    `<strong>${escHtml(local.identificacao)}</strong> — ${escHtml(servico.nome)} ${valorTexto}`;
-
-  const lista = document.getElementById('lista-funcionarios');
-  lista.innerHTML = '<p class="carregando">Carregando funcionários...</p>';
-
-  mostrarView('view-funcionarios');
-
-  db.collection('funcionarios').orderBy('nome').get().then(snap => {
-    lista.innerHTML = '';
-    if (snap.empty) {
-      lista.innerHTML = '<p class="vazio">Nenhum funcionário cadastrado.</p>';
-      return;
-    }
-    snap.forEach(doc => {
-      const func = { id: doc.id, ...doc.data() };
-      const btn  = document.createElement('button');
-      btn.className = 'btn-funcionario';
-      btn.innerHTML = `
-        <span class="func-nome">${escHtml(func.nome)}</span>
-        <span class="func-cargo">${escHtml(func.cargo || '')}</span>
-      `;
-      btn.onclick = () => adicionarEntrada(func);
-      lista.appendChild(btn);
+  servicosSelecionados.forEach(({ local, servico }) => {
+    entradas.push({
+      funcionario: funcionarioAtual,
+      localId:     local.identificacao,
+      servico:     servico.nome,
+      valor:       getMdo(servico.nome)
     });
   });
-}
 
-// ── View Folha ─────────────────────────────────────────────
-function adicionarEntrada(funcionario) {
-  entradas.push({
-    funcionario,
-    localId: servicoAtual.local.identificacao,
-    servico: servicoAtual.servico.nome,
-    valor:   servicoAtual.mdo
-  });
   renderizarFolha();
   atualizarHeader();
   mostrarView('view-folha');
 }
 
+// ── View Folha ─────────────────────────────────────────────
 function renderizarFolha() {
   const total = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
   const hoje  = new Date().toLocaleDateString('pt-BR');
@@ -217,7 +237,7 @@ function renderizarFolha() {
       <td>${escHtml(e.funcionario.nome)}</td>
       <td>${escHtml(e.funcionario.cargo || '—')}</td>
       <td>${escHtml(e.localId)}</td>
-      <td>${escHtml(e.servico)}</td>
+      <td>${escHtml(nomeAbrev(e.servico))}</td>
       <td class="td-valor">R$ ${Number(e.valor).toFixed(2)}</td>
     </tr>
   `).join('');
@@ -241,7 +261,7 @@ function renderizarFolha() {
           </tr>
         </tfoot>
       </table>
-      <div class="folha-rodape">Toque para continuar adicionando ↩</div>
+      <div class="folha-rodape">Toque para adicionar outro funcionário ↩</div>
     </div>
   `;
 }

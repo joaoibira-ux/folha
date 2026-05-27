@@ -14,28 +14,29 @@
     <button id="btn-imprimir" onclick="imprimirFolha()">Imprimir</button>
   </header>
 
-  <!-- View 1: Mapa -->
-  <div id="view-mapa" class="view ativa">
+  <!-- View 1: Funcionários (padrão) -->
+  <div id="view-funcionarios" class="view ativa">
+    <div id="lista-funcionarios"></div>
+  </div>
+
+  <!-- View 2: Mapa (com barra do funcionário + botão OK) -->
+  <div id="view-mapa" class="view">
+    <div class="mapa-barra">
+      <button class="btn-voltar" onclick="mostrarView('view-funcionarios')">&#8592;</button>
+      <span id="func-atual" class="func-atual"></span>
+      <button id="btn-ok" class="btn-ok" onclick="confirmarSelecao()" disabled>OK</button>
+    </div>
     <div class="legenda">
       <span class="leg-item"><span class="leg-cor concluido"></span> Concluído</span>
       <span class="leg-item"><span class="leg-cor pendente"></span> Pendente</span>
+      <span class="leg-item"><span class="leg-cor selecionado"></span> Selecionado</span>
     </div>
-    <p class="instrucao">Clique em um serviço para adicionar à folha</p>
     <div id="mapa" class="mapa"></div>
-  </div>
-
-  <!-- View 2: Funcionários -->
-  <div id="view-funcionarios" class="view">
-    <div class="view-header">
-      <button class="btn-voltar" onclick="mostrarView('view-mapa')">&#8592;</button>
-      <div id="servico-selecionado"></div>
-    </div>
-    <div id="lista-funcionarios"></div>
   </div>
 
   <!-- View 3: Folha Preview -->
   <div id="view-folha" class="view">
-    <div id="folha-documento" onclick="mostrarView('view-mapa')"></div>
+    <div id="folha-documento" onclick="mostrarView('view-funcionarios')"></div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
