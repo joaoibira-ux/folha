@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Folha de Pagamento</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <h1>Folha de Pagamento</h1>
+    <span id="total-header" class="total-header"></span>
+    <button id="btn-imprimir" onclick="imprimirFolha()">Imprimir</button>
+  </header>
+
+  <!-- View 1: Mapa -->
+  <div id="view-mapa" class="view ativa">
+    <p class="instrucao">Clique em um serviço para adicionar à folha</p>
+    <div id="mapa" class="mapa"></div>
+  </div>
+
+  <!-- View 2: Funcionários -->
+  <div id="view-funcionarios" class="view">
+    <div class="view-header">
+      <button class="btn-voltar" onclick="mostrarView('view-mapa')">&#8592; Voltar</button>
+      <div id="servico-selecionado"></div>
+    </div>
+    <div id="lista-funcionarios"></div>
+  </div>
+
+  <!-- View 3: Folha Preview -->
+  <div id="view-folha" class="view">
+    <p class="instrucao">Toque na folha para adicionar mais</p>
+    <div id="folha-documento" onclick="mostrarView('view-mapa')"></div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
