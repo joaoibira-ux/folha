@@ -354,8 +354,10 @@ header {
   color: #666;
 }
 
-.grupo-cargo.pintor   { background: #fff3e0; color: #e65100; }
-.grupo-cargo.raspador { background: #e8f5e9; color: #2e7d32; }
+.grupo-cargo.pintor       { background: #fff3e0; color: #e65100; }
+.grupo-cargo.raspador     { background: #e8f5e9; color: #2e7d32; }
+.grupo-cargo.encarregado  { background: #e8eaf6; color: #283593; }
+.grupo-encarregado        { border-color: #9fa8da; }
 
 /* ── TABELA DA FOLHA ─────────────────────────────────────── */
 .folha-tabela {

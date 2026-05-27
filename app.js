@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "3.2";
+const VERSAO = "3.3";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -19,7 +19,8 @@ let funcionarioAtual     = null;
 let servicosSelecionados = new Map();
 let locaisCache          = {};
 let servicosCache        = [];
-let folhaAbertaId        = null; // ID do documento da folha em andamento
+let folhaAbertaId        = null;
+let encarregadoCache     = null;
 
 // ── Navegação ──────────────────────────────────────────────
 function mostrarView(id) {
@@ -66,6 +67,13 @@ db.collection('servicos').onSnapshot(snap => {
   servicosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 });
 
+// ── Encarregado ────────────────────────────────────────────
+db.collection('funcionarios').onSnapshot(snap => {
+  encarregadoCache = snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .find(f => f.ativo !== false && (f.cargo || '').toLowerCase().includes('encarregado')) || null;
+});
+
 // ── Verifica folha em andamento na abertura ────────────────
 function verificarFolhaExistente() {
   db.collection('locais').get().then(snap => {
@@ -89,6 +97,7 @@ function verificarFolhaExistente() {
 
       entradas = [];
       (folha.grupos || []).forEach(g => {
+        if (g.isEncarregado) return; // recalculado dinamicamente
         (g.itens || []).forEach(item => {
           // Só inclui se o serviço ainda está em_pagamento no locais
           if (!emPagamentoSet.has(`${item.firestoreLocalId}:${item.servico}`)) return;
@@ -300,9 +309,39 @@ function fmtMoeda(v) {
 
 // ── View Folha ─────────────────────────────────────────────
 function renderizarFolha() {
-  const hoje = new Date().toLocaleDateString('pt-BR');
+  const hoje  = new Date().toLocaleDateString('pt-BR');
+  const nServ = entradas.length;
 
-  // Agrupa por funcionário mantendo a ordem de inserção
+  // ── Bloco do encarregado (topo) ──
+  let encarregadoHtml  = '';
+  let valorEncarregado = 0;
+  if (encarregadoCache) {
+    const quinzena = (encarregadoCache.salario || 0) / 2;
+    const bonus    = 5 * nServ;
+    valorEncarregado = quinzena + bonus;
+    encarregadoHtml = `
+      <div class="grupo-func grupo-encarregado">
+        <div class="grupo-header">
+          <span class="grupo-nome">${escHtml(encarregadoCache.nome)}</span>
+          <span class="grupo-cargo encarregado">${escHtml(encarregadoCache.cargo)}</span>
+        </div>
+        <table class="folha-tabela">
+          <thead><tr><th colspan="2">Descrição</th><th>Valor</th></tr></thead>
+          <tbody>
+            <tr><td colspan="2">Quinzena (50% do salário)</td><td class="td-valor">${fmtMoeda(quinzena)}</td></tr>
+            <tr><td colspan="2">${nServ} serviço${nServ !== 1 ? 's' : ''} × R$ 5,00</td><td class="td-valor">${fmtMoeda(bonus)}</td></tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2" class="td-sub-label">Subtotal</td>
+              <td class="td-sub-valor">${fmtMoeda(valorEncarregado)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>`;
+  }
+
+  // ── Grupos de produção ──
   const grupos = new Map();
   entradas.forEach(e => {
     const key = e.funcionario.id || e.funcionario.nome;
@@ -310,7 +349,8 @@ function renderizarFolha() {
     grupos.get(key).itens.push(e);
   });
 
-  const totalGeral = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
+  const totalProducao = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
+  const totalGeral    = totalProducao + valorEncarregado;
 
   const gruposHtml = [...grupos.values()].map(g => {
     const subtotal = g.itens.reduce((acc, e) => acc + Number(e.valor), 0);
@@ -344,6 +384,7 @@ function renderizarFolha() {
     <div class="folha-paper">
       <div class="folha-titulo">FOLHA DE PAGAMENTO DA PRODUÇÃO</div>
       <div class="folha-data">Emitida em ${hoje}</div>
+      ${encarregadoHtml}
       ${gruposHtml}
       <div class="total-geral">
         <span>TOTAL GERAL</span>
@@ -356,7 +397,11 @@ function renderizarFolha() {
 function atualizarHeader() {
   const el = document.getElementById('total-header');
   if (!entradas.length) { el.textContent = ''; return; }
-  const total = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
+  const totalProd = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
+  const totalEnc  = encarregadoCache
+    ? ((encarregadoCache.salario || 0) / 2) + (5 * entradas.length)
+    : 0;
+  const total = totalProd + totalEnc;
   el.textContent = `${entradas.length} item${entradas.length > 1 ? 's' : ''} · R$ ${total.toFixed(2)}`;
 }
 
@@ -383,23 +428,39 @@ function fecharFolha() {
     grupos.get(key).itens.push(e);
   });
 
-  const totalGeral = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
+  const totalProducao    = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
+  const valorEncarregado = encarregadoCache
+    ? ((encarregadoCache.salario || 0) / 2) + (5 * entradas.length)
+    : 0;
+  const totalGeral = totalProducao + valorEncarregado;
+
+  const gruposProducao = [...grupos.values()].map(g => ({
+    funcionario: { id: g.funcionario.id || '', nome: g.funcionario.nome, cargo: g.funcionario.cargo || '' },
+    subtotal:    g.itens.reduce((acc, e) => acc + Number(e.valor), 0),
+    itens:       g.itens.map(e => ({
+      firestoreLocalId: e.firestoreLocalId || '',
+      localId:          e.localId,
+      servico:          e.servico,
+      valor:            Number(e.valor)
+    }))
+  }));
+
+  const grupoEncarregado = encarregadoCache ? [{
+    isEncarregado: true,
+    funcionario: { id: encarregadoCache.id, nome: encarregadoCache.nome, cargo: encarregadoCache.cargo || '' },
+    subtotal: valorEncarregado,
+    itens: [
+      { firestoreLocalId: '', localId: '—', servico: 'Quinzena 50%',           valor: (encarregadoCache.salario || 0) / 2 },
+      { firestoreLocalId: '', localId: '—', servico: `${entradas.length} serv × R$5`, valor: 5 * entradas.length }
+    ]
+  }] : [];
 
   const folhaDoc = {
     data:       new Date().toLocaleDateString('pt-BR'),
     criadoEm:  firebase.firestore.FieldValue.serverTimestamp(),
     status:    'fechada',
     totalGeral,
-    grupos: [...grupos.values()].map(g => ({
-      funcionario: { id: g.funcionario.id || '', nome: g.funcionario.nome, cargo: g.funcionario.cargo || '' },
-      subtotal:    g.itens.reduce((acc, e) => acc + Number(e.valor), 0),
-      itens:       g.itens.map(e => ({
-        firestoreLocalId: e.firestoreLocalId || '',
-        localId:          e.localId,
-        servico:          e.servico,
-        valor:            Number(e.valor)
-      }))
-    }))
+    grupos: [...grupoEncarregado, ...gruposProducao]
   };
 
   // Agrupa serviços a marcar por localId do Firestore: servicoNome → funcionario
