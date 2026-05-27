@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "1.1";
+const VERSAO = "1.2";
 document.querySelector("header span").textContent = `Folha de Pagamento v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -138,9 +138,10 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
 
 // ── Click no serviço → abre funcionários ──────────────────
 function onServicoClick(el) {
-  const local   = locaisCache[el.dataset.localid];
+  const local    = locaisCache[el.dataset.localid];
   const servicos = [...(local.servicos || [])].sort((a, b) => ordemServico(a.nome) - ordemServico(b.nome));
   const servico  = servicos[parseInt(el.dataset.svidx)];
+  if (servico.status === 'concluido') return;
   abrirFuncionarios(local, servico);
 }
 

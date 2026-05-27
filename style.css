@@ -172,7 +172,11 @@ header {
   background: #a5d6a7;
   color: #1b5e20;
   font-weight: 600;
+  cursor: default;
+  opacity: 0.7;
 }
+
+.apt-serv.concluido:hover { filter: none; }
 
 .empty {
   text-align: center;
