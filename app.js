@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "3.0";
+const VERSAO = "3.1";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -73,7 +73,10 @@ function verificarFolhaExistente() {
     const emPagamentoSet = new Set();
     snap.docs.forEach(doc => {
       (doc.data().servicos || []).forEach(s => {
-        if (s.status === 'em_pagamento') emPagamentoSet.add(`${doc.id}:${s.nome}`);
+        if (s.status === 'em_pagamento') {
+          emPagamentoSet.add(`${doc.id}:${s.nome}`);
+          emPagamentoSet.add(`${doc.id}:${nomeAbrev(s.nome)}`);
+        }
       });
     });
     if (!emPagamentoSet.size) return;
@@ -230,7 +233,10 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
     const emPagamentoSet = new Set();
     snap.docs.forEach(doc => {
       (doc.data().servicos || []).forEach(s => {
-        if (s.status === 'em_pagamento') emPagamentoSet.add(`${doc.id}:${s.nome}`);
+        if (s.status === 'em_pagamento') {
+          emPagamentoSet.add(`${doc.id}:${s.nome}`);
+          emPagamentoSet.add(`${doc.id}:${nomeAbrev(s.nome)}`);
+        }
       });
     });
     const antes = entradas.length;
@@ -390,7 +396,7 @@ function fecharFolha() {
       itens:       g.itens.map(e => ({
         firestoreLocalId: e.firestoreLocalId || '',
         localId:          e.localId,
-        servico:          nomeAbrev(e.servico),
+        servico:          e.servico,
         valor:            Number(e.valor)
       }))
     }))
