@@ -2,20 +2,24 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Folha de Pagamento</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
   <header>
-    <h1>Folha de Pagamento</h1>
+    <span>Folha de Pagamento</span>
     <span id="total-header" class="total-header"></span>
     <button id="btn-imprimir" onclick="imprimirFolha()">Imprimir</button>
   </header>
 
   <!-- View 1: Mapa -->
   <div id="view-mapa" class="view ativa">
+    <div class="legenda">
+      <span class="leg-item"><span class="leg-cor concluido"></span> Concluído</span>
+      <span class="leg-item"><span class="leg-cor pendente"></span> Pendente</span>
+    </div>
     <p class="instrucao">Clique em um serviço para adicionar à folha</p>
     <div id="mapa" class="mapa"></div>
   </div>
@@ -23,7 +27,7 @@
   <!-- View 2: Funcionários -->
   <div id="view-funcionarios" class="view">
     <div class="view-header">
-      <button class="btn-voltar" onclick="mostrarView('view-mapa')">&#8592; Voltar</button>
+      <button class="btn-voltar" onclick="mostrarView('view-mapa')">&#8592;</button>
       <div id="servico-selecionado"></div>
     </div>
     <div id="lista-funcionarios"></div>
@@ -31,7 +35,6 @@
 
   <!-- View 3: Folha Preview -->
   <div id="view-folha" class="view">
-    <p class="instrucao">Toque na folha para adicionar mais</p>
     <div id="folha-documento" onclick="mostrarView('view-mapa')"></div>
   </div>
 
