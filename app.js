@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "2.3";
+const VERSAO = "2.4";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -73,6 +73,7 @@ db.collection('funcionarios').orderBy('nome').onSnapshot(snap => {
   const cargosValidos = ['pintor', 'raspador'];
   const docs = snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
+    .filter(f => f.ativo !== false)
     .filter(f => cargosValidos.some(c => (f.cargo || '').toLowerCase().includes(c)));
 
   if (!docs.length) {
