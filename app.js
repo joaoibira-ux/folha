@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "3.3";
+const VERSAO = "3.4";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -75,43 +75,55 @@ db.collection('funcionarios').onSnapshot(snap => {
 });
 
 // ── Verifica folha em andamento na abertura ────────────────
+// Fonte de verdade = locais (mapa). Folha doc = fallback para funcionário/valor.
 function verificarFolhaExistente() {
   db.collection('locais').get().then(snap => {
-    // Constrói set dos serviços que ainda estão em_pagamento
-    const emPagamentoSet = new Set();
+    // Lê todos os serviços amarelos do mapa
+    const amarelos = [];
     snap.docs.forEach(doc => {
-      (doc.data().servicos || []).forEach(s => {
+      const local = doc.data();
+      (local.servicos || []).forEach(s => {
         if (s.status === 'em_pagamento') {
-          emPagamentoSet.add(`${doc.id}:${s.nome}`);
-          emPagamentoSet.add(`${doc.id}:${nomeAbrev(s.nome)}`);
+          amarelos.push({
+            firestoreLocalId: doc.id,
+            localId:          local.identificacao,
+            servico:          s.nome,
+            funcionario:      s.funcionario || null
+          });
         }
       });
     });
-    if (!emPagamentoSet.size) return;
+    if (!amarelos.length) return;
 
+    // Carrega folha salva para recuperar funcionário e valor de itens antigos
     db.collection('folhas').orderBy('criadoEm', 'desc').limit(1).get().then(fSnap => {
-      if (fSnap.empty) return;
-      const doc   = fSnap.docs[0];
-      const folha = doc.data();
-      folhaAbertaId = doc.id;
+      folhaAbertaId = fSnap.empty ? null : fSnap.docs[0].id;
 
-      entradas = [];
-      (folha.grupos || []).forEach(g => {
-        if (g.isEncarregado) return; // recalculado dinamicamente
-        (g.itens || []).forEach(item => {
-          // Só inclui se o serviço ainda está em_pagamento no locais
-          if (!emPagamentoSet.has(`${item.firestoreLocalId}:${item.servico}`)) return;
-          entradas.push({
-            funcionario:      g.funcionario,
-            firestoreLocalId: item.firestoreLocalId || '',
-            localId:          item.localId,
-            servico:          item.servico,
-            valor:            Number(item.valor)
+      // Lookup do documento salvo: "firestoreId:nome" e "firestoreId:nomeAbrev" → {fn, valor}
+      const lookup = new Map();
+      if (!fSnap.empty) {
+        (fSnap.docs[0].data().grupos || []).forEach(g => {
+          if (g.isEncarregado) return;
+          (g.itens || []).forEach(item => {
+            const entry = { fn: g.funcionario, valor: Number(item.valor) };
+            lookup.set(`${item.firestoreLocalId}:${item.servico}`,            entry);
+            lookup.set(`${item.firestoreLocalId}:${nomeAbrev(item.servico)}`, entry);
           });
         });
+      }
+
+      entradas = amarelos.map(s => {
+        const found = lookup.get(`${s.firestoreLocalId}:${s.servico}`)
+                   || lookup.get(`${s.firestoreLocalId}:${nomeAbrev(s.servico)}`);
+        return {
+          funcionario:      s.funcionario || (found && found.fn) || { nome: '(desconhecido)', cargo: '' },
+          firestoreLocalId: s.firestoreLocalId,
+          localId:          s.localId,
+          servico:          s.servico,
+          valor:            found ? found.valor : getMdo(s.servico)
+        };
       });
 
-      if (!entradas.length) return;
       renderizarFolha();
       atualizarHeader();
       mostrarView('view-folha');
