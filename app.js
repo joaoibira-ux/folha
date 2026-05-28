@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "3.5";
+const VERSAO = "3.6";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -81,64 +81,7 @@ db.collection('funcionarios').onSnapshot(snap => {
     .find(f => f.ativo !== false && (f.cargo || '').toLowerCase().includes('encarregado')) || null;
 });
 
-// ── Verifica folha em andamento na abertura ────────────────
-// Fonte de verdade = locais (mapa). Folha doc = fallback para funcionário/valor.
-function verificarFolhaExistente() {
-  db.collection('locais').get().then(snap => {
-    // Lê todos os serviços amarelos do mapa
-    const amarelos = [];
-    snap.docs.forEach(doc => {
-      const local = doc.data();
-      (local.servicos || []).forEach(s => {
-        if (s.status === 'em_pagamento') {
-          amarelos.push({
-            firestoreLocalId: doc.id,
-            localId:          local.identificacao,
-            servico:          s.nome,
-            funcionario:      s.funcionario || null
-          });
-        }
-      });
-    });
-    if (!amarelos.length) return;
-
-    // Carrega folha salva para recuperar funcionário e valor de itens antigos
-    db.collection('folhas').orderBy('criadoEm', 'desc').limit(1).get().then(fSnap => {
-      folhaAbertaId = fSnap.empty ? null : fSnap.docs[0].id;
-
-      // Lookup do documento salvo: "firestoreId:nome" e "firestoreId:nomeAbrev" → {fn, valor}
-      const lookup = new Map();
-      if (!fSnap.empty) {
-        (fSnap.docs[0].data().grupos || []).forEach(g => {
-          if (g.isEncarregado) return;
-          (g.itens || []).forEach(item => {
-            const entry = { fn: g.funcionario, valor: Number(item.valor) };
-            lookup.set(`${item.firestoreLocalId}:${item.servico}`,            entry);
-            lookup.set(`${item.firestoreLocalId}:${nomeAbrev(item.servico)}`, entry);
-          });
-        });
-      }
-
-      entradas = amarelos.map(s => {
-        const found = lookup.get(`${s.firestoreLocalId}:${s.servico}`)
-                   || lookup.get(`${s.firestoreLocalId}:${nomeAbrev(s.servico)}`);
-        return {
-          funcionario:      s.funcionario || (found && found.fn) || { nome: '(desconhecido)', cargo: '' },
-          firestoreLocalId: s.firestoreLocalId,
-          localId:          s.localId,
-          servico:          s.servico,
-          valor:            found ? found.valor : calcValor(s.servico, (s.funcionario || {}).cargo)
-        };
-      });
-
-      renderizarFolha();
-      atualizarHeader();
-      mostrarView('view-folha');
-    });
-  });
-}
-
-verificarFolhaExistente();
+let folhaCarregada = false; // garante detecção apenas na primeira snapshot
 
 // ── View Funcionários ──────────────────────────────────────
 db.collection('funcionarios').orderBy('nome').onSnapshot(snap => {
@@ -256,7 +199,69 @@ function render(data) {
 db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
   render(snap.docs.map(d => ({ id: d.id, ...d.data() })));
 
-  // Atualiza folha em tempo real se estiver visível
+  // ── Detecção de folha existente (usa cache offline — roda na 1ª snapshot) ──
+  if (!folhaCarregada) {
+    folhaCarregada = true;
+    const amarelos = [];
+    snap.docs.forEach(doc => {
+      const local = doc.data();
+      (local.servicos || []).forEach(s => {
+        if (s.status === 'em_pagamento') {
+          amarelos.push({
+            firestoreLocalId: doc.id,
+            localId:          local.identificacao,
+            servico:          s.nome,
+            funcionario:      s.funcionario || null
+          });
+        }
+      });
+    });
+
+    if (amarelos.length) {
+      // Monta entradas imediatamente com os dados do locais (sem esperar folha doc)
+      entradas = amarelos.map(s => ({
+        funcionario:      s.funcionario || { nome: '(desconhecido)', cargo: '' },
+        firestoreLocalId: s.firestoreLocalId,
+        localId:          s.localId,
+        servico:          s.servico,
+        valor:            calcValor(s.servico, (s.funcionario || {}).cargo)
+      }));
+      renderizarFolha();
+      atualizarHeader();
+      mostrarView('view-folha');
+
+      // Em segundo plano: carrega folha doc para refinar fn/valor de itens antigos e pegar ID
+      db.collection('folhas').orderBy('criadoEm', 'desc').limit(1).get().then(fSnap => {
+        if (fSnap.empty) return;
+        folhaAbertaId = fSnap.docs[0].id;
+
+        const lookup = new Map();
+        (fSnap.docs[0].data().grupos || []).forEach(g => {
+          if (g.isEncarregado) return;
+          (g.itens || []).forEach(item => {
+            const entry = { fn: g.funcionario, valor: Number(item.valor) };
+            lookup.set(`${item.firestoreLocalId}:${item.servico}`,            entry);
+            lookup.set(`${item.firestoreLocalId}:${nomeAbrev(item.servico)}`, entry);
+          });
+        });
+
+        // Refina entradas com dados do documento salvo
+        let refinado = false;
+        entradas = entradas.map(e => {
+          const found = lookup.get(`${e.firestoreLocalId}:${e.servico}`)
+                     || lookup.get(`${e.firestoreLocalId}:${nomeAbrev(e.servico)}`);
+          if (!found) return e;
+          const novoFn    = e.funcionario.nome !== '(desconhecido)' ? e.funcionario : (found.fn || e.funcionario);
+          const novoValor = found.valor !== undefined ? found.valor : e.valor;
+          if (novoFn !== e.funcionario || novoValor !== e.valor) refinado = true;
+          return { ...e, funcionario: novoFn, valor: novoValor };
+        });
+        if (refinado) { renderizarFolha(); atualizarHeader(); }
+      });
+    }
+  }
+
+  // ── Atualiza folha em tempo real se estiver visível ──
   if (entradas.length && document.getElementById('view-folha').classList.contains('ativa')) {
     const emPagamentoSet = new Set();
     snap.docs.forEach(doc => {
