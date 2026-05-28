@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "3.9";
+const VERSAO = "4.0";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -437,7 +437,7 @@ function fmtMoeda(v) {
 // ── View Folha ─────────────────────────────────────────────
 function renderizarFolha() {
   const hoje  = new Date().toLocaleDateString('pt-BR');
-  const nServ = entradas.length;
+  const nServ = entradas.filter(e => e.firestoreLocalId).length; // só serviços do mapa
 
   // ── Bloco do encarregado (topo) ──
   let encarregadoHtml  = '';
@@ -534,8 +534,9 @@ function atualizarHeader() {
   const el = document.getElementById('total-header');
   if (!entradas.length) { el.textContent = ''; return; }
   const totalProd = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
+  const nServHeader = entradas.filter(e => e.firestoreLocalId).length;
   const totalEnc  = encarregadoCache
-    ? ((encarregadoCache.salario || 0) / 2) + (5 * entradas.length)
+    ? ((encarregadoCache.salario || 0) / 2) + (5 * nServHeader)
     : 0;
   const total = totalProd + totalEnc;
   el.textContent = `${entradas.length} item${entradas.length > 1 ? 's' : ''} · R$ ${total.toFixed(2)}`;
@@ -564,9 +565,10 @@ function fecharFolha() {
     grupos.get(key).itens.push(e);
   });
 
+  const nServMapa        = entradas.filter(e => e.firestoreLocalId).length;
   const totalProducao    = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
   const valorEncarregado = encarregadoCache
-    ? ((encarregadoCache.salario || 0) / 2) + (5 * entradas.length)
+    ? ((encarregadoCache.salario || 0) / 2) + (5 * nServMapa)
     : 0;
   const totalGeral = totalProducao + valorEncarregado;
 
@@ -587,7 +589,7 @@ function fecharFolha() {
     subtotal: valorEncarregado,
     itens: [
       { firestoreLocalId: '', localId: '—', servico: 'Quinzena 50%',           valor: (encarregadoCache.salario || 0) / 2 },
-      { firestoreLocalId: '', localId: '—', servico: `${entradas.length} serv × R$5`, valor: 5 * entradas.length }
+      { firestoreLocalId: '', localId: '—', servico: `${nServMapa} serv × R$5`, valor: 5 * nServMapa }
     ]
   }] : [];
 
