@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.4";
+const VERSAO = "4.5";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -689,6 +689,10 @@ function fecharFolha() {
 }
 
 function mostrarComprovante(gruposData, encData, valorEnc, nServ, totalGeral, pagamentos) {
+  // Libera zoom out para captura de tela completa
+  const vpMeta = document.querySelector('meta[name="viewport"]');
+  if (vpMeta) vpMeta.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover, minimum-scale=0.1, user-scalable=yes');
+
   const hoje = new Date().toLocaleDateString('pt-BR');
 
   let encHtml = '';
