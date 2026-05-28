@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.5";
+const VERSAO = "4.6";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -689,9 +689,6 @@ function fecharFolha() {
 }
 
 function mostrarComprovante(gruposData, encData, valorEnc, nServ, totalGeral, pagamentos) {
-  // Libera zoom out para captura de tela completa
-  const vpMeta = document.querySelector('meta[name="viewport"]');
-  if (vpMeta) vpMeta.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover, minimum-scale=0.1, user-scalable=yes');
 
   const hoje = new Date().toLocaleDateString('pt-BR');
 
@@ -764,6 +761,28 @@ function mostrarComprovante(gruposData, encData, valorEnc, nServ, totalGeral, pa
         <span class="cp-total-v">${fmtMoeda(totalGeral)}</span>
       </div>
     </div>`;
+
+  // Auto-escala para caber tudo em uma tela (iOS não permite zoom out manual)
+  setTimeout(() => {
+    const wrap   = document.querySelector('.cp-wrap');
+    const cpBody = document.querySelector('.cp-body');
+    if (!wrap) return;
+    if (cpBody) { cpBody.style.overflow = 'visible'; cpBody.style.flex = 'none'; }
+    wrap.style.height   = 'auto';
+    wrap.style.overflow = 'visible';
+    const totalH = wrap.scrollHeight;
+    const viewH  = window.innerHeight;
+    const viewW  = window.innerWidth;
+    if (totalH > viewH * 0.98) {
+      const scale = viewH / totalH;
+      wrap.style.transform       = `scale(${scale.toFixed(4)})`;
+      wrap.style.transformOrigin = 'top left';
+      wrap.style.width           = `${Math.ceil(viewW / scale)}px`;
+      wrap.style.height          = `${totalH}px`;
+    }
+    document.body.style.overflow = 'hidden';
+    document.body.style.height   = `${viewH}px`;
+  }, 150);
 }
 
 function mostrarSucesso(pagamentos, totalGeral) {
