@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "3.8";
+const VERSAO = "3.9";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -162,14 +162,14 @@ db.collection('funcionarios').orderBy('nome').onSnapshot(snap => {
   const lista = document.getElementById('lista-funcionarios');
   lista.innerHTML = '';
 
-  const cargosValidos = ['pintor', 'raspador'];
+  const cargosValidos = ['pintor', 'raspador', 'ajudante'];
   const docs = snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
     .filter(f => f.ativo !== false)
     .filter(f => cargosValidos.some(c => (f.cargo || '').toLowerCase().includes(c)));
 
   if (!docs.length) {
-    lista.innerHTML = '<p class="vazio">Nenhum pintor ou raspador cadastrado.</p>';
+    lista.innerHTML = '<p class="vazio">Nenhum funcionário cadastrado.</p>';
     return;
   }
 
