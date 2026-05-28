@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.1";
+const VERSAO = "4.2";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -95,13 +95,35 @@ const DOW_CAL   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
 function abrirCalendario(func) {
   diasSelecionados = new Map();
-  document.getElementById('cal-func-nome').textContent = func.nome;
-  calAno      = new Date().getFullYear();
+
+  // Pré-carrega dias já na folha para este ajudante
+  const funcKey = func.id || func.nome;
+  const anoAtual = new Date().getFullYear();
+  entradas.forEach(e => {
+    if ((e.funcionario.id || e.funcionario.nome) !== funcKey) return;
+    if (e.firestoreLocalId !== '') return;
+    const meio     = e.localId.includes('½');
+    const dataPart = e.localId.replace(' ½', '').trim();
+    const [dia, mes] = dataPart.split('/');
+    if (!dia || !mes) return;
+    const key = `${anoAtual}-${mes.padStart(2,'0')}-${dia.padStart(2,'0')}`;
+    diasSelecionados.set(key, meio ? 'half' : 'full');
+  });
+
+  // Navega para o mês da primeira entrada existente, ou mês atual
+  calAno      = anoAtual;
   calMesAtual = new Date().getMonth();
+  if (diasSelecionados.size > 0) {
+    const first = [...diasSelecionados.keys()].sort()[0];
+    calMesAtual = parseInt(first.split('-')[1]) - 1;
+  }
+
+  document.getElementById('cal-func-nome').textContent = func.nome;
   renderCalendario();
+  const n   = diasSelecionados.size;
   const btn = document.getElementById('btn-ok-cal');
-  btn.disabled    = true;
-  btn.textContent = 'OK';
+  btn.disabled    = n === 0;
+  btn.textContent = n > 0 ? `OK (${n})` : 'OK';
   mostrarView('view-calendario');
 }
 
@@ -144,7 +166,13 @@ function toggleDia(key) {
 
 function confirmarDias() {
   if (!diasSelecionados.size) return;
-  const diaria = funcionarioAtual.salario || 0;
+  const diaria  = funcionarioAtual.salario || 0;
+  const funcKey = funcionarioAtual.id || funcionarioAtual.nome;
+  // Remove entradas existentes deste ajudante para substituir pela nova seleção
+  entradas = entradas.filter(e => {
+    const eKey = e.funcionario.id || e.funcionario.nome;
+    return !(eKey === funcKey && !e.firestoreLocalId);
+  });
   [...diasSelecionados.entries()].sort((a, b) => a[0].localeCompare(b[0])).forEach(([key, state]) => {
     const [, mes, dia] = key.split('-');
     const meio  = state === 'half';
