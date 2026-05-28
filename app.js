@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.0";
+const VERSAO = "4.1";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -84,7 +84,7 @@ db.collection('funcionarios').onSnapshot(snap => {
 let folhaCarregada   = false;
 let calAno           = new Date().getFullYear();
 let calMesAtual      = new Date().getMonth();
-let diasSelecionados = new Set();
+let diasSelecionados = new Map(); // key → 'full' | 'half'
 
 function ehAjudante(cargo) {
   return (cargo || '').toLowerCase().includes('ajudante');
@@ -94,7 +94,7 @@ const MESES_CAL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho'
 const DOW_CAL   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
 function abrirCalendario(func) {
-  diasSelecionados.clear();
+  diasSelecionados = new Map();
   document.getElementById('cal-func-nome').textContent = func.nome;
   calAno      = new Date().getFullYear();
   calMesAtual = new Date().getMonth();
@@ -121,17 +121,20 @@ function renderCalendario() {
   let html = DOW_CAL.map(d => `<div class="cal-dow">${d}</div>`).join('');
   for (let i = 0; i < primeiroDia; i++) html += `<div class="cal-dia vazio"></div>`;
   for (let d = 1; d <= totalDias; d++) {
-    const key  = `${calAno}-${String(calMesAtual + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const sel  = diasSelecionados.has(key) ? ' selecionado' : '';
-    const isHj = (d === hoje.getDate() && calMesAtual === hoje.getMonth() && calAno === hoje.getFullYear()) ? ' hoje' : '';
-    html += `<div class="cal-dia${sel}${isHj}" onclick="toggleDia('${key}')">${d}</div>`;
+    const key   = `${calAno}-${String(calMesAtual + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const state = diasSelecionados.get(key);
+    const cls   = state === 'full' ? ' selecionado' : state === 'half' ? ' meio-periodo' : '';
+    const isHj  = (d === hoje.getDate() && calMesAtual === hoje.getMonth() && calAno === hoje.getFullYear()) ? ' hoje' : '';
+    html += `<div class="cal-dia${cls}${isHj}" onclick="toggleDia('${key}')">${d}</div>`;
   }
   document.getElementById('cal-grid').innerHTML = html;
 }
 
 function toggleDia(key) {
-  if (diasSelecionados.has(key)) diasSelecionados.delete(key);
-  else diasSelecionados.add(key);
+  const state = diasSelecionados.get(key);
+  if (!state)              diasSelecionados.set(key, 'full');
+  else if (state === 'full') diasSelecionados.set(key, 'half');
+  else                     diasSelecionados.delete(key);
   renderCalendario();
   const n   = diasSelecionados.size;
   const btn = document.getElementById('btn-ok-cal');
@@ -142,14 +145,15 @@ function toggleDia(key) {
 function confirmarDias() {
   if (!diasSelecionados.size) return;
   const diaria = funcionarioAtual.salario || 0;
-  [...diasSelecionados].sort().forEach(key => {
-    const [ano, mes, dia] = key.split('-');
+  [...diasSelecionados.entries()].sort((a, b) => a[0].localeCompare(b[0])).forEach(([key, state]) => {
+    const [, mes, dia] = key.split('-');
+    const meio  = state === 'half';
     entradas.push({
       funcionario:      funcionarioAtual,
       firestoreLocalId: '',
-      localId:          `${dia}/${mes}`,
+      localId:          `${dia}/${mes}${meio ? ' ½' : ''}`,
       servico:          'Diária',
-      valor:            diaria
+      valor:            meio ? diaria / 2 : diaria
     });
   });
   renderizarFolha();

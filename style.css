@@ -255,7 +255,8 @@ header {
 }
 .cal-dia.vazio { cursor: default; }
 .cal-dia.hoje  { border: 2px solid #1a3322; font-weight: 700; }
-.cal-dia.selecionado { background: #1a3322; color: #fff; font-weight: 700; }
+.cal-dia.selecionado  { background: #1a3322; color: #fff;    font-weight: 700; }
+.cal-dia.meio-periodo { background: #fff59d; color: #e65100; font-weight: 700; }
 
 /* ── BARRA DO MAPA ───────────────────────────────────────── */
 .mapa-barra {
