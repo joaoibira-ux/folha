@@ -206,6 +206,57 @@ header {
 /* ── VIEW FUNCIONÁRIOS ───────────────────────────────────── */
 #view-funcionarios { padding: 14px 16px; }
 
+/* ── CALENDÁRIO ──────────────────────────────────────────── */
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+.cal-nav-btn {
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  color: #1a3322;
+  cursor: pointer;
+  padding: 0 10px;
+  line-height: 1;
+}
+.cal-titulo-mes {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #1a3322;
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  padding: 10px 12px;
+  background: #fff;
+  overflow-y: auto;
+}
+.cal-dow {
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #999;
+  padding: 4px 0 6px;
+}
+.cal-dia {
+  text-align: center;
+  padding: 11px 2px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #333;
+}
+.cal-dia.vazio { cursor: default; }
+.cal-dia.hoje  { border: 2px solid #1a3322; font-weight: 700; }
+.cal-dia.selecionado { background: #1a3322; color: #fff; font-weight: 700; }
+
 /* ── BARRA DO MAPA ───────────────────────────────────────── */
 .mapa-barra {
   display: flex;

@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "3.6";
+const VERSAO = "3.7";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -81,7 +81,81 @@ db.collection('funcionarios').onSnapshot(snap => {
     .find(f => f.ativo !== false && (f.cargo || '').toLowerCase().includes('encarregado')) || null;
 });
 
-let folhaCarregada = false; // garante detecção apenas na primeira snapshot
+let folhaCarregada   = false;
+let calAno           = new Date().getFullYear();
+let calMesAtual      = new Date().getMonth();
+let diasSelecionados = new Set();
+
+function ehAjudante(cargo) {
+  return (cargo || '').toLowerCase().includes('ajudante');
+}
+
+const MESES_CAL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const DOW_CAL   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+function abrirCalendario(func) {
+  diasSelecionados.clear();
+  document.getElementById('cal-func-nome').textContent = func.nome;
+  calAno      = new Date().getFullYear();
+  calMesAtual = new Date().getMonth();
+  renderCalendario();
+  const btn = document.getElementById('btn-ok-cal');
+  btn.disabled    = true;
+  btn.textContent = 'OK';
+  mostrarView('view-calendario');
+}
+
+function calMes(delta) {
+  calMesAtual += delta;
+  if (calMesAtual < 0)  { calMesAtual = 11; calAno--; }
+  if (calMesAtual > 11) { calMesAtual = 0;  calAno++; }
+  renderCalendario();
+}
+
+function renderCalendario() {
+  document.getElementById('cal-titulo').textContent = `${MESES_CAL[calMesAtual]} ${calAno}`;
+  const primeiroDia = new Date(calAno, calMesAtual, 1).getDay();
+  const totalDias   = new Date(calAno, calMesAtual + 1, 0).getDate();
+  const hoje        = new Date();
+
+  let html = DOW_CAL.map(d => `<div class="cal-dow">${d}</div>`).join('');
+  for (let i = 0; i < primeiroDia; i++) html += `<div class="cal-dia vazio"></div>`;
+  for (let d = 1; d <= totalDias; d++) {
+    const key  = `${calAno}-${String(calMesAtual + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const sel  = diasSelecionados.has(key) ? ' selecionado' : '';
+    const isHj = (d === hoje.getDate() && calMesAtual === hoje.getMonth() && calAno === hoje.getFullYear()) ? ' hoje' : '';
+    html += `<div class="cal-dia${sel}${isHj}" onclick="toggleDia('${key}')">${d}</div>`;
+  }
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+function toggleDia(key) {
+  if (diasSelecionados.has(key)) diasSelecionados.delete(key);
+  else diasSelecionados.add(key);
+  renderCalendario();
+  const n   = diasSelecionados.size;
+  const btn = document.getElementById('btn-ok-cal');
+  btn.disabled    = n === 0;
+  btn.textContent = n > 0 ? `OK (${n})` : 'OK';
+}
+
+function confirmarDias() {
+  if (!diasSelecionados.size) return;
+  const diaria = funcionarioAtual.salario || 0;
+  [...diasSelecionados].sort().forEach(key => {
+    const [ano, mes, dia] = key.split('-');
+    entradas.push({
+      funcionario:      funcionarioAtual,
+      firestoreLocalId: '',
+      localId:          `${dia}/${mes}`,
+      servico:          'Diária',
+      valor:            diaria
+    });
+  });
+  renderizarFolha();
+  atualizarHeader();
+  mostrarView('view-folha');
+}
 
 // ── View Funcionários ──────────────────────────────────────
 db.collection('funcionarios').orderBy('nome').onSnapshot(snap => {
@@ -116,7 +190,11 @@ function selecionarFuncionario(func) {
   servicosSelecionados.clear();
   document.getElementById('func-atual').textContent = func.nome;
   atualizarBtnOk();
-  mostrarView('view-mapa');
+  if (ehAjudante(func.cargo)) {
+    abrirCalendario(func);
+  } else {
+    mostrarView('view-mapa');
+  }
 }
 
 // ── View Mapa ──────────────────────────────────────────────
@@ -256,6 +334,22 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
           if (novoFn !== e.funcionario || novoValor !== e.valor) refinado = true;
           return { ...e, funcionario: novoFn, valor: novoValor };
         });
+        // Carrega diárias de ajudantes (firestoreLocalId vazio — não vêm do locais)
+        (fSnap.docs[0].data().grupos || []).forEach(g => {
+          if (g.isEncarregado || !ehAjudante(g.funcionario.cargo)) return;
+          (g.itens || []).forEach(item => {
+            if (item.firestoreLocalId) return;
+            entradas.push({
+              funcionario:      g.funcionario,
+              firestoreLocalId: '',
+              localId:          item.localId,
+              servico:          item.servico,
+              valor:            Number(item.valor)
+            });
+            refinado = true;
+          });
+        });
+
         if (refinado) { renderizarFolha(); atualizarHeader(); }
       });
     }
@@ -273,7 +367,10 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
       });
     });
     const antes = entradas.length;
-    entradas = entradas.filter(e => emPagamentoSet.has(`${e.firestoreLocalId}:${e.servico}`));
+    entradas = entradas.filter(e =>
+      !e.firestoreLocalId  // preserva diárias de ajudantes (sem locais)
+      || emPagamentoSet.has(`${e.firestoreLocalId}:${e.servico}`)
+    );
     if (entradas.length !== antes) {
       renderizarFolha();
       atualizarHeader();

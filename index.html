@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Folha de Pagamento da Produção</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <link rel="stylesheet" href="style.css?v=3.6">
+  <link rel="stylesheet" href="style.css?v=3.7">
 </head>
 <body>
 
@@ -35,7 +35,22 @@
     <div id="mapa" class="mapa"></div>
   </div>
 
-  <!-- View 3: Folha Preview -->
+  <!-- View 3: Calendário (ajudante) -->
+  <div id="view-calendario" class="view">
+    <div class="mapa-barra">
+      <button class="btn-voltar" onclick="mostrarView('view-funcionarios')">&#8592;</button>
+      <span id="cal-func-nome" class="func-atual"></span>
+      <button id="btn-ok-cal" class="btn-ok" onclick="confirmarDias()" disabled>OK</button>
+    </div>
+    <div class="cal-nav">
+      <button class="cal-nav-btn" onclick="calMes(-1)">&#8249;</button>
+      <span id="cal-titulo" class="cal-titulo-mes"></span>
+      <button class="cal-nav-btn" onclick="calMes(1)">&#8250;</button>
+    </div>
+    <div id="cal-grid" class="cal-grid"></div>
+  </div>
+
+  <!-- View 4: Folha Preview -->
   <div id="view-folha" class="view">
     <div id="folha-documento" onclick="mostrarView('view-funcionarios')"></div>
     <div class="folha-acoes">
@@ -46,6 +61,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="app.js?v=3.6"></script>
+  <script src="app.js?v=3.7"></script>
 </body>
 </html>
