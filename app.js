@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "3.4";
+const VERSAO = "3.5";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -60,6 +60,13 @@ function getMdo(nomeServico) {
   const ordem = ordemServico(nomeServico);
   const match = servicosCache.find(s => ordemServico(s.nome) === ordem);
   return match ? (match.mdo || 0) : 0;
+}
+
+function calcValor(nomeServico, cargo) {
+  const base        = getMdo(nomeServico);
+  const tratamento  = (nomeServico || '').toLowerCase().includes('tratamento');
+  const pintor      = (cargo || '').toLowerCase().includes('pintor');
+  return tratamento && pintor ? base + 10 : base;
 }
 
 // ── Coleção servicos ───────────────────────────────────────
@@ -120,7 +127,7 @@ function verificarFolhaExistente() {
           firestoreLocalId: s.firestoreLocalId,
           localId:          s.localId,
           servico:          s.servico,
-          valor:            found ? found.valor : getMdo(s.servico)
+          valor:            found ? found.valor : calcValor(s.servico, (s.funcionario || {}).cargo)
         };
       });
 
@@ -306,7 +313,7 @@ function confirmarSelecao() {
       firestoreLocalId: local.id,
       localId:          local.identificacao,
       servico:          servico.nome,
-      valor:            getMdo(servico.nome)
+      valor:            calcValor(servico.nome, funcionarioAtual.cargo)
     });
   });
 
