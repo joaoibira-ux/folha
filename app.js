@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "3.7";
+const VERSAO = "3.8";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -424,6 +424,12 @@ function confirmarSelecao() {
   mostrarView('view-folha');
 }
 
+function removerDiaria(idx) {
+  entradas.splice(idx, 1);
+  renderizarFolha();
+  atualizarHeader();
+}
+
 function fmtMoeda(v) {
   return 'R$ ' + Number(v).toFixed(2).replace('.', ',');
 }
@@ -464,23 +470,37 @@ function renderizarFolha() {
 
   // ── Grupos de produção ──
   const grupos = new Map();
-  entradas.forEach(e => {
+  entradas.forEach((e, idx) => {
     const key = e.funcionario.id || e.funcionario.nome;
     if (!grupos.has(key)) grupos.set(key, { funcionario: e.funcionario, itens: [] });
-    grupos.get(key).itens.push(e);
+    grupos.get(key).itens.push({ ...e, _idx: idx });
   });
 
   const totalProducao = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
   const totalGeral    = totalProducao + valorEncarregado;
 
   const gruposHtml = [...grupos.values()].map(g => {
+    const isAjud   = ehAjudante(g.funcionario.cargo);
     const subtotal = g.itens.reduce((acc, e) => acc + Number(e.valor), 0);
-    const linhas = g.itens.map(e => `
+    const linhas   = g.itens.map(e => isAjud ? `
+      <tr>
+        <td>${escHtml(e.localId)}</td>
+        <td>${escHtml(e.servico)}</td>
+        <td class="td-valor">${fmtMoeda(e.valor)}</td>
+        <td class="td-del"><button class="btn-del-dia" onclick="removerDiaria(${e._idx})">✕</button></td>
+      </tr>` : `
       <tr>
         <td>${escHtml(e.localId)}</td>
         <td>${escHtml(nomeAbrev(e.servico))}</td>
         <td class="td-valor">${fmtMoeda(e.valor)}</td>
       </tr>`).join('');
+
+    const thead = isAjud
+      ? `<tr><th>Data</th><th>Diária</th><th>Valor</th><th></th></tr>`
+      : `<tr><th>Local</th><th>Serviço</th><th>Valor</th></tr>`;
+    const tfoot = isAjud
+      ? `<tr><td colspan="3" class="td-sub-label">Subtotal</td><td class="td-sub-valor">${fmtMoeda(subtotal)}</td></tr>`
+      : `<tr><td colspan="2" class="td-sub-label">Subtotal</td><td class="td-sub-valor">${fmtMoeda(subtotal)}</td></tr>`;
 
     return `
       <div class="grupo-func">
@@ -489,14 +509,9 @@ function renderizarFolha() {
           <span class="grupo-cargo ${(g.funcionario.cargo||'').toLowerCase()}">${escHtml(g.funcionario.cargo||'')}</span>
         </div>
         <table class="folha-tabela">
-          <thead><tr><th>Local</th><th>Serviço</th><th>Valor</th></tr></thead>
+          <thead>${thead}</thead>
           <tbody>${linhas}</tbody>
-          <tfoot>
-            <tr>
-              <td colspan="2" class="td-sub-label">Subtotal</td>
-              <td class="td-sub-valor">${fmtMoeda(subtotal)}</td>
-            </tr>
-          </tfoot>
+          <tfoot>${tfoot}</tfoot>
         </table>
       </div>`;
   }).join('');
