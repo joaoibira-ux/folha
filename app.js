@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.3";
+const VERSAO = "4.4";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -665,24 +665,101 @@ function fecharFolha() {
     .then(() => {
       folhaAbertaId = null;
 
-      // Monta resumo antes de limpar
-      const pagamentos = [];
+      // Captura dados antes de limpar
+      const pagamentos  = [];
+      const gruposData  = [];
       if (encarregadoCache) {
         pagamentos.push({ nome: encarregadoCache.nome, cargo: encarregadoCache.cargo || 'encarregado', valor: valorEncarregado });
       }
       [...grupos.values()].forEach(g => {
-        pagamentos.push({ nome: g.funcionario.nome, cargo: g.funcionario.cargo || '', valor: g.itens.reduce((a, e) => a + Number(e.valor), 0) });
+        const subtotal = g.itens.reduce((a, e) => a + Number(e.valor), 0);
+        pagamentos.push({ nome: g.funcionario.nome, cargo: g.funcionario.cargo || '', valor: subtotal });
+        gruposData.push({ funcionario: g.funcionario, itens: g.itens });
       });
 
       entradas = [];
       atualizarHeader();
-      mostrarSucesso(pagamentos, totalGeral);
+      mostrarComprovante(gruposData, encarregadoCache, valorEncarregado, nServMapa, totalGeral, pagamentos);
     })
     .catch(() => {
       btnFechar.disabled = false;
       btnFechar.textContent = 'Fechar Folha';
       alert('Erro ao salvar. Tente novamente.');
     });
+}
+
+function mostrarComprovante(gruposData, encData, valorEnc, nServ, totalGeral, pagamentos) {
+  const hoje = new Date().toLocaleDateString('pt-BR');
+
+  let encHtml = '';
+  if (encData) {
+    const quinzena = (encData.salario || 0) / 2;
+    const bonus    = 5 * nServ;
+    encHtml = `
+      <div class="cp-grupo cp-enc">
+        <div class="cp-func">${escHtml(encData.nome)} <span class="cp-cargo">encarregado</span></div>
+        <div class="cp-item"><span>Quinzena 50%</span><span>${fmtMoeda(quinzena)}</span></div>
+        <div class="cp-item"><span>${nServ} serv × R$5</span><span>${fmtMoeda(bonus)}</span></div>
+        <div class="cp-sub"><span>Subtotal</span><span>${fmtMoeda(valorEnc)}</span></div>
+      </div>`;
+  }
+
+  const gruposHtml = gruposData.map(g => {
+    const sub    = g.itens.reduce((a, e) => a + Number(e.valor), 0);
+    const isAjud = ehAjudante(g.funcionario.cargo);
+    const itens  = g.itens.map(e => `
+      <div class="cp-item">
+        <span>${escHtml(e.localId)} · ${escHtml(isAjud ? e.servico : nomeAbrev(e.servico))}</span>
+        <span>${fmtMoeda(e.valor)}</span>
+      </div>`).join('');
+    return `
+      <div class="cp-grupo">
+        <div class="cp-func">${escHtml(g.funcionario.nome)} <span class="cp-cargo">${escHtml(g.funcionario.cargo||'')}</span></div>
+        ${itens}
+        <div class="cp-sub"><span>Subtotal</span><span>${fmtMoeda(sub)}</span></div>
+      </div>`;
+  }).join('');
+
+  window._sucPag   = pagamentos;
+  window._sucTotal = totalGeral;
+
+  document.body.innerHTML = `
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      html,body{height:100%;height:100dvh}
+      body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+      .cp-wrap{display:flex;flex-direction:column;height:100dvh;background:#0d1f14;color:#c8e6c9;font-size:0.66rem;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}
+      .cp-header{background:linear-gradient(160deg,#1e4d2e 0%,#1a3322 100%);padding:10px 12px 8px;flex-shrink:0;border-bottom:1px solid rgba(165,214,167,0.15)}
+      .cp-title{font-size:0.75rem;font-weight:900;letter-spacing:1.5px;color:#a5d6a7}
+      .cp-meta{font-size:0.58rem;color:#4a8a5a;margin-top:2px;display:flex;justify-content:space-between}
+      .cp-body{flex:1;overflow-y:auto;padding:7px 10px}
+      .cp-grupo{border:1px solid rgba(165,214,167,0.12);border-radius:5px;margin-bottom:6px;overflow:hidden}
+      .cp-enc{border-color:rgba(165,214,167,0.28)}
+      .cp-func{background:rgba(165,214,167,0.08);padding:4px 8px;font-weight:700;color:#a5d6a7;font-size:0.68rem}
+      .cp-cargo{font-size:0.56rem;font-weight:400;color:#4a8a5a;text-transform:capitalize;margin-left:5px}
+      .cp-item{display:flex;justify-content:space-between;padding:3px 8px;border-top:1px solid rgba(165,214,167,0.06);color:#66bb6a}
+      .cp-sub{display:flex;justify-content:space-between;padding:4px 8px;border-top:1px solid rgba(165,214,167,0.18);font-weight:700;color:#a5d6a7}
+      .cp-footer{background:#0d1f14;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(165,214,167,0.2);flex-shrink:0}
+      .cp-total-l{font-size:0.68rem;font-weight:700;letter-spacing:1px;color:#66bb6a}
+      .cp-total-v{font-size:1rem;font-weight:900;color:#a5d6a7}
+    </style>
+    <div class="cp-wrap" onclick="mostrarSucesso(window._sucPag,window._sucTotal)">
+      <div class="cp-header">
+        <div class="cp-title">FOLHA DE PAGAMENTO DA PRODUÇÃO</div>
+        <div class="cp-meta">
+          <span>Emitida em ${hoje}</span>
+          <span>toque para continuar →</span>
+        </div>
+      </div>
+      <div class="cp-body">
+        ${encHtml}
+        ${gruposHtml}
+      </div>
+      <div class="cp-footer">
+        <span class="cp-total-l">TOTAL GERAL</span>
+        <span class="cp-total-v">${fmtMoeda(totalGeral)}</span>
+      </div>
+    </div>`;
 }
 
 function mostrarSucesso(pagamentos, totalGeral) {
