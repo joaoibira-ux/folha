@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.2";
+const VERSAO = "4.3";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -664,11 +664,19 @@ function fecharFolha() {
   batch.commit()
     .then(() => {
       folhaAbertaId = null;
+
+      // Monta resumo antes de limpar
+      const pagamentos = [];
+      if (encarregadoCache) {
+        pagamentos.push({ nome: encarregadoCache.nome, cargo: encarregadoCache.cargo || 'encarregado', valor: valorEncarregado });
+      }
+      [...grupos.values()].forEach(g => {
+        pagamentos.push({ nome: g.funcionario.nome, cargo: g.funcionario.cargo || '', valor: g.itens.reduce((a, e) => a + Number(e.valor), 0) });
+      });
+
       entradas = [];
       atualizarHeader();
-      btnFechar.disabled = false;
-      btnFechar.textContent = 'Fechar Folha';
-      mostrarSucesso();
+      mostrarSucesso(pagamentos, totalGeral);
     })
     .catch(() => {
       btnFechar.disabled = false;
@@ -677,14 +685,59 @@ function fecharFolha() {
     });
 }
 
-function mostrarSucesso() {
+function mostrarSucesso(pagamentos, totalGeral) {
+  const linhas = pagamentos.map(p => `
+    <div style="display:flex;align-items:center;padding:7px 14px;border-bottom:1px solid rgba(165,214,167,0.1);">
+      <div style="flex:1;min-width:0;">
+        <span style="font-weight:700;font-size:0.78rem;color:#e8f5e9;">${escHtml(p.nome)}</span>
+        <span style="font-size:0.62rem;color:#4a8a5a;margin-left:6px;text-transform:capitalize;">${escHtml(p.cargo)}</span>
+      </div>
+      <span style="font-size:0.82rem;font-weight:800;color:#a5d6a7;white-space:nowrap;">${fmtMoeda(p.valor)}</span>
+    </div>`).join('');
+
   document.body.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
-                height:100dvh;background:#1a3322;color:#fff;gap:16px;">
-      <div style="font-size:3rem;">✓</div>
-      <div style="font-size:1.2rem;font-weight:700;">Folha fechada!</div>
+    <div style="display:flex;flex-direction:column;height:100dvh;background:#0d1f14;color:#e8f5e9;
+                font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden;">
+
+      <div style="display:flex;flex-direction:column;align-items:center;padding:18px 16px 14px;
+                  background:linear-gradient(160deg,#1e4d2e 0%,#1a3322 100%);flex-shrink:0;">
+        <svg width="54" height="54" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4"  y="32" width="22" height="8" rx="2" fill="#a5d6a7"/>
+          <rect x="30" y="32" width="22" height="8" rx="2" fill="#a5d6a7"/>
+          <rect x="4"  y="44" width="10" height="8" rx="2" fill="#66bb6a"/>
+          <rect x="18" y="44" width="22" height="8" rx="2" fill="#a5d6a7"/>
+          <rect x="44" y="44" width="8"  height="8" rx="2" fill="#66bb6a"/>
+          <path d="M28 30 C28 30 15 20 15 11 C15 5 21 1 28 1 C35 1 41 5 41 11 C41 20 28 30 28 30Z" fill="#43a047"/>
+          <path d="M28 30 C28 30 38 22 38 13 C38 7.5 34 3.5 28 2.5" fill="#81c784" opacity="0.4"/>
+          <line x1="28" y1="29" x2="28" y2="32" stroke="#2e7d32" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+        <div style="font-size:1.2rem;font-weight:900;letter-spacing:3px;color:#a5d6a7;margin-top:6px;">GREEN WALL</div>
+        <div style="font-size:0.58rem;letter-spacing:2px;color:#4a8a5a;margin-top:1px;">CONSTRUÇÃO E ACABAMENTO</div>
+        <div style="margin-top:11px;display:flex;align-items:center;gap:7px;
+                    background:rgba(76,175,80,0.18);padding:6px 18px;border-radius:20px;
+                    border:1px solid rgba(76,175,80,0.35);">
+          <span style="color:#69f0ae;font-size:1rem;font-weight:900;">✓</span>
+          <span style="font-size:0.88rem;font-weight:700;color:#c8e6c9;">Folha Fechada com Sucesso!</span>
+        </div>
+      </div>
+
+      <div style="padding:5px 0 0;background:#1a3322;flex-shrink:0;">
+        <div style="padding:4px 14px;font-size:0.57rem;letter-spacing:1.5px;color:#4a8a5a;font-weight:700;">
+          RESUMO DE PAGAMENTOS
+        </div>
+      </div>
+
+      <div style="flex:1;overflow-y:auto;background:#1a3322;">
+        ${linhas}
+      </div>
+
+      <div style="background:#0d1f14;padding:13px 16px;display:flex;justify-content:space-between;
+                  align-items:center;border-top:1px solid rgba(165,214,167,0.2);flex-shrink:0;">
+        <span style="font-size:0.72rem;font-weight:700;letter-spacing:1.5px;color:#66bb6a;">TOTAL GERAL</span>
+        <span style="font-size:1.15rem;font-weight:900;color:#a5d6a7;">${fmtMoeda(totalGeral)}</span>
+      </div>
     </div>`;
-  setTimeout(() => window.close(), 1500);
+  setTimeout(() => window.close(), 6000);
 }
 
 if ('serviceWorker' in navigator) {
