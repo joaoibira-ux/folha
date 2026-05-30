@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.17";
+const VERSAO = "4.18";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -82,6 +82,7 @@ db.collection('funcionarios').onSnapshot(snap => {
 });
 
 let folhaCarregada   = false;
+let folhaCriadoEm    = null;
 let calAno           = new Date().getFullYear();
 let calMesAtual      = new Date().getMonth();
 let diasSelecionados = new Map(); // key → 'full' | 'half'
@@ -187,6 +188,7 @@ function confirmarDias() {
   renderizarFolha();
   atualizarHeader();
   mostrarView('view-folha');
+  salvarFolha(true);
 }
 
 // ── View Funcionários ──────────────────────────────────────
@@ -470,6 +472,7 @@ function confirmarSelecao() {
   renderizarFolha();
   atualizarHeader();
   mostrarView('view-folha');
+  salvarFolha(true);
 }
 
 function removerDiaria(idx) {
@@ -597,22 +600,19 @@ function imprimirFolha() {
   setTimeout(() => window.print(), 200);
 }
 
-// ── Fechar Folha → salva no Firestore + marca serviços ────
-async function fecharFolha() {
-  if (!entradas.length) return;
+// ── Salva folha no Firestore (chamado no OK do mapa/calendário e no botão) ──
+async function salvarFolha(silencioso = false) {
+  if (!entradas.length) return null;
 
   const btnFechar = document.querySelector('.btn-fechar-folha');
-  btnFechar.disabled = true;
-  btnFechar.textContent = 'Salvando...';
+  if (!silencioso && btnFechar) { btnFechar.disabled = true; btnFechar.textContent = 'Salvando...'; }
 
-  // Guarda data de criação e garante diárias de ajudantes no entradas
-  let folhaCriadoEm = null;
+  // Completa diárias de ajudantes que ainda não foram carregadas pelo fetch em background
   if (folhaAbertaId) {
     try {
       const fDoc = await db.collection('folhas').doc(folhaAbertaId).get();
       if (fDoc.exists) {
-        if (fDoc.data().criadoEm) folhaCriadoEm = fDoc.data().criadoEm;
-        // Se diárias de ajudantes ainda não foram carregadas pelo fetch em background, carrega agora
+        if (fDoc.data().criadoEm && !folhaCriadoEm) folhaCriadoEm = fDoc.data().criadoEm;
         const ajudantesJaCarregados = new Set(
           entradas.filter(e => !e.firestoreLocalId).map(e => e.funcionario.id || e.funcionario.nome)
         );
@@ -629,7 +629,6 @@ async function fecharFolha() {
     } catch(e) {}
   }
 
-  // Agrupa por funcionário para o documento da folha
   const grupos = new Map();
   entradas.forEach(e => {
     const key = e.funcionario.id || e.funcionario.nome;
@@ -640,19 +639,13 @@ async function fecharFolha() {
   const nServMapa        = entradas.filter(e => e.firestoreLocalId).length;
   const totalProducao    = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
   const valorEncarregado = encarregadoCache
-    ? ((encarregadoCache.salario || 0) / 2) + (5 * nServMapa)
-    : 0;
+    ? ((encarregadoCache.salario || 0) / 2) + (5 * nServMapa) : 0;
   const totalGeral = totalProducao + valorEncarregado;
 
   const gruposProducao = [...grupos.values()].map(g => ({
     funcionario: { id: g.funcionario.id || '', nome: g.funcionario.nome, cargo: g.funcionario.cargo || '' },
     subtotal:    g.itens.reduce((acc, e) => acc + Number(e.valor), 0),
-    itens:       g.itens.map(e => ({
-      firestoreLocalId: e.firestoreLocalId || '',
-      localId:          e.localId,
-      servico:          e.servico,
-      valor:            Number(e.valor)
-    }))
+    itens:       g.itens.map(e => ({ firestoreLocalId: e.firestoreLocalId || '', localId: e.localId, servico: e.servico, valor: Number(e.valor) }))
   }));
 
   const grupoEncarregado = encarregadoCache ? [{
@@ -660,34 +653,26 @@ async function fecharFolha() {
     funcionario: { id: encarregadoCache.id, nome: encarregadoCache.nome, cargo: encarregadoCache.cargo || '' },
     subtotal: valorEncarregado,
     itens: [
-      { firestoreLocalId: '', localId: '—', servico: 'Quinzena 50%',           valor: (encarregadoCache.salario || 0) / 2 },
+      { firestoreLocalId: '', localId: '—', servico: 'Quinzena 50%',            valor: (encarregadoCache.salario || 0) / 2 },
       { firestoreLocalId: '', localId: '—', servico: `${nServMapa} serv × R$5`, valor: 5 * nServMapa }
     ]
   }] : [];
 
   const folhaDoc = {
-    data:       new Date().toLocaleDateString('pt-BR'),
-    criadoEm:  firebase.firestore.FieldValue.serverTimestamp(),
-    status:    'fechada',
-    totalGeral,
+    data: new Date().toLocaleDateString('pt-BR'),
+    criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+    status: 'fechada', totalGeral,
     grupos: [...grupoEncarregado, ...gruposProducao]
   };
 
-  // Agrupa serviços a marcar por localId do Firestore: servicoNome → funcionario
   const locaisParaAtualizar = new Map();
   entradas.forEach(e => {
-    if (!locaisParaAtualizar.has(e.firestoreLocalId)) {
-      locaisParaAtualizar.set(e.firestoreLocalId, new Map());
-    }
+    if (!locaisParaAtualizar.has(e.firestoreLocalId)) locaisParaAtualizar.set(e.firestoreLocalId, new Map());
     locaisParaAtualizar.get(e.firestoreLocalId).set(e.servico, e.funcionario);
   });
 
-  // Monta o batch: salva/atualiza folha + atualiza status dos serviços
   const batch = db.batch();
-
-  const folhaRef = folhaAbertaId
-    ? db.collection('folhas').doc(folhaAbertaId)
-    : db.collection('folhas').doc();
+  const folhaRef = folhaAbertaId ? db.collection('folhas').doc(folhaAbertaId) : db.collection('folhas').doc();
   batch.set(folhaRef, folhaDoc);
 
   locaisParaAtualizar.forEach((servicoFuncMap, firestoreId) => {
@@ -703,16 +688,25 @@ async function fecharFolha() {
 
   try {
     await batch.commit();
+    folhaAbertaId = folhaRef.id;
+    if (!silencioso && btnFechar) { btnFechar.disabled = false; btnFechar.textContent = 'Relatório/Resumo'; }
+    return { grupos, nServMapa, totalGeral, valorEncarregado };
   } catch(e) {
-    btnFechar.disabled = false;
-    btnFechar.textContent = 'Atualizar a Folha';
-    alert('Erro ao salvar. Tente novamente.');
-    return;
+    if (!silencioso && btnFechar) { btnFechar.disabled = false; btnFechar.textContent = 'Relatório/Resumo'; }
+    if (!silencioso) alert('Erro ao salvar. Tente novamente.');
+    return null;
   }
+}
 
-  folhaAbertaId = null;
+// ── Botão Relatório/Resumo → salva + mostra comprovante ───────────────────
+async function fecharFolha() {
+  if (!entradas.length) return;
 
-  // Captura dados antes de limpar
+  const resultado = await salvarFolha(false);
+  if (!resultado) return;
+
+  const { grupos, nServMapa, totalGeral, valorEncarregado } = resultado;
+
   const pagamentos = [];
   const gruposData = [];
   if (encarregadoCache) {
@@ -724,13 +718,9 @@ async function fecharFolha() {
     gruposData.push({ funcionario: g.funcionario, itens: g.itens });
   });
 
-  // Busca adiantamentos lançados no caixa após a abertura desta folha
-  const adiantamentosMap = new Map(); // nome → total saída
-  let _debugErr = 'nenhum';
-  let _debugTotal = 0;
+  const adiantamentosMap = new Map();
   try {
     const adSnap = await db.collection('lancamentos').limit(100).get();
-    _debugTotal = adSnap.size;
     adSnap.docs.forEach(d => {
       const r = d.data();
       if ((r.origem || '') !== 'ANE->ADIANTAMENTO') return;
@@ -740,7 +730,7 @@ async function fecharFolha() {
       if (!nome) return;
       adiantamentosMap.set(nome, (adiantamentosMap.get(nome) || 0) + (r.saida || 0));
     });
-  } catch(e) { _debugErr = String(e); }
+  } catch(e) {}
 
   entradas = [];
   atualizarHeader();
