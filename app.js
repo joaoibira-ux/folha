@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.11";
+const VERSAO = "4.12-debug";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -713,6 +713,16 @@ async function fecharFolha() {
 
   entradas = [];
   atualizarHeader();
+
+  // DEBUG temporário — remove após verificar
+  const debugInfo = {
+    totalAdiantamentos: adiantamentosMap.size,
+    nomes: [...adiantamentosMap.entries()].map(([k,v]) => `"${k}"=R$${v}`).join(' | '),
+    nomesNaFolha: gruposData.map(g => `"${g.funcionario.nome}"`).join(' | ')
+  };
+  console.log('DEBUG adiantamentos:', debugInfo);
+  alert(`DEBUG\nAdiantamentos encontrados: ${debugInfo.totalAdiantamentos}\n${debugInfo.nomes}\n\nFuncionários na folha:\n${debugInfo.nomesNaFolha}`);
+
   mostrarComprovante(gruposData, encarregadoCache, valorEncarregado, nServMapa, totalGeral, pagamentos, adiantamentosMap);
 }
 
