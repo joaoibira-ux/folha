@@ -695,6 +695,7 @@ async function fecharFolha() {
 
   // Busca adiantamentos lançados no caixa após a abertura desta folha
   const adiantamentosMap = new Map(); // nome → total saída
+  let _debugErr = 'nenhum';
   try {
     const adSnap = await db.collection('lancamentos')
       .where('origem', '==', 'ANE->ADIANTAMENTO')
@@ -709,7 +710,7 @@ async function fecharFolha() {
       if (!nome) return;
       adiantamentosMap.set(nome, (adiantamentosMap.get(nome) || 0) + (r.saida || 0));
     });
-  } catch(e) {}
+  } catch(e) { _debugErr = String(e); }
 
   entradas = [];
   atualizarHeader();
@@ -720,8 +721,7 @@ async function fecharFolha() {
     nomes: [...adiantamentosMap.entries()].map(([k,v]) => `"${k}"=R$${v}`).join(' | '),
     nomesNaFolha: gruposData.map(g => `"${g.funcionario.nome}"`).join(' | ')
   };
-  console.log('DEBUG adiantamentos:', debugInfo);
-  alert(`DEBUG\nAdiantamentos encontrados: ${debugInfo.totalAdiantamentos}\n${debugInfo.nomes}\n\nFuncionários na folha:\n${debugInfo.nomesNaFolha}`);
+  alert(`DEBUG\nAdiantamentos encontrados: ${debugInfo.totalAdiantamentos}\n${debugInfo.nomes}\nErro: ${_debugErr}\n\nFuncionários na folha:\n${debugInfo.nomesNaFolha}`);
 
   mostrarComprovante(gruposData, encarregadoCache, valorEncarregado, nServMapa, totalGeral, pagamentos, adiantamentosMap);
 }
