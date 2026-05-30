@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.21";
+const VERSAO = "4.22";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -179,10 +179,9 @@ function toggleDia(key) {
 }
 
 function confirmarDias() {
-  if (!diasSelecionados.size) { mostrarView('view-folha'); return; }
   const diaria  = funcionarioAtual.salario || 0;
   const funcKey = funcionarioAtual.id || funcionarioAtual.nome;
-  // Remove entradas existentes deste ajudante para substituir pela nova seleção
+  // Remove todas as entradas deste ajudante e re-adiciona apenas os dias selecionados
   entradas = entradas.filter(e => {
     const eKey = e.funcionario.id || e.funcionario.nome;
     return !(eKey === funcKey && !e.firestoreLocalId);
