@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.20";
+const VERSAO = "4.21";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -85,7 +85,8 @@ let folhaCarregada   = false;
 let folhaCriadoEm    = null;
 let calAno           = new Date().getFullYear();
 let calMesAtual      = new Date().getMonth();
-let diasSelecionados = new Map(); // key → 'full' | 'half'
+let diasSelecionados  = new Map(); // key → 'full' | 'half'
+let diasPreCarregados = new Set(); // dias já salvos na folha (exigem senha para remover)
 
 function ehAjudante(cargo) {
   return (cargo || '').toLowerCase().includes('ajudante');
@@ -95,7 +96,8 @@ const MESES_CAL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho'
 const DOW_CAL   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
 function abrirCalendario(func) {
-  diasSelecionados = new Map();
+  diasSelecionados  = new Map();
+  diasPreCarregados = new Set();
 
   // Pré-carrega dias já na folha para este ajudante
   const funcKey = func.id || func.nome;
@@ -109,6 +111,7 @@ function abrirCalendario(func) {
     if (!dia || !mes) return;
     const key = `${anoAtual}-${mes.padStart(2,'0')}-${dia.padStart(2,'0')}`;
     diasSelecionados.set(key, meio ? 'half' : 'full');
+    diasPreCarregados.add(key);
   });
 
   // Navega para o mês da primeira entrada existente, ou mês atual
@@ -155,9 +158,19 @@ function renderCalendario() {
 
 function toggleDia(key) {
   const state = diasSelecionados.get(key);
-  if (!state)              diasSelecionados.set(key, 'full');
-  else if (state === 'full') diasSelecionados.set(key, 'half');
-  else                     diasSelecionados.delete(key);
+  if (!state) {
+    diasSelecionados.set(key, 'full');
+  } else if (state === 'full') {
+    diasSelecionados.set(key, 'half');
+  } else {
+    if (diasPreCarregados.has(key)) {
+      const senha = prompt('Remover este dia da folha?\n\nDigite a senha:');
+      if (senha === null) return;
+      if (senha !== '4512') { alert('Senha incorreta.'); return; }
+      diasPreCarregados.delete(key);
+    }
+    diasSelecionados.delete(key);
+  }
   renderCalendario();
   const n   = diasSelecionados.size;
   const btn = document.getElementById('btn-ok-cal');
