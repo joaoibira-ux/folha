@@ -1,8 +1,8 @@
-const VERSION = "folha-v4.22";
+const VERSION = "folha-v4.23";
 const ASSETS = [
   "./index.html",
   "./style.css?v=4.19",
-  "./app.js?v=4.22"
+  "./app.js?v=4.23"
 ];
 
 self.addEventListener("install", e => {

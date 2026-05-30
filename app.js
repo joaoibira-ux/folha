@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.22";
+const VERSAO = "4.23";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -200,7 +200,7 @@ function confirmarDias() {
   renderizarFolha();
   atualizarHeader();
   mostrarView('view-folha');
-  salvarFolha(true);
+  salvarFolha(true, false);
 }
 
 // ── View Funcionários ──────────────────────────────────────
@@ -484,7 +484,7 @@ function confirmarSelecao() {
   renderizarFolha();
   atualizarHeader();
   mostrarView('view-folha');
-  salvarFolha(true);
+  salvarFolha(true, false);
 }
 
 function removerDiaria(idx) {
@@ -613,14 +613,15 @@ function imprimirFolha() {
 }
 
 // ── Salva folha no Firestore (chamado no OK do mapa/calendário e no botão) ──
-async function salvarFolha(silencioso = false) {
-  if (!entradas.length) return null;
+async function salvarFolha(silencioso = false, completarAjudantes = true) {
+  if (!entradas.length && completarAjudantes) return null;
 
   const btnFechar = document.querySelector('.btn-fechar-folha');
   if (!silencioso && btnFechar) { btnFechar.disabled = true; btnFechar.textContent = 'Salvando...'; }
 
   // Completa diárias de ajudantes que ainda não foram carregadas pelo fetch em background
-  if (folhaAbertaId) {
+  // (não rodar quando chamado de confirmarDias/confirmarSelecao, pois entradas já estão corretas)
+  if (completarAjudantes && folhaAbertaId) {
     try {
       const fDoc = await db.collection('folhas').doc(folhaAbertaId).get();
       if (fDoc.exists) {
