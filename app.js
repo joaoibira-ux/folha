@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.15";
+const VERSAO = "4.16";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -416,7 +416,23 @@ function onServicoClick(el) {
   const local    = locaisCache[el.dataset.localid];
   const servicos = [...(local.servicos || [])].sort((a, b) => ordemServico(a.nome) - ordemServico(b.nome));
   const servico  = servicos[parseInt(el.dataset.svidx)];
-  if (servico.status === 'concluido' || servico.status === 'em_pagamento') return;
+  if (servico.status === 'concluido') return;
+
+  if (servico.status === 'em_pagamento') {
+    const senha = prompt(`Remover "${nomeAbrev(servico.nome)}" do local ${local.identificacao} da folha?\n\nDigite a senha:`);
+    if (senha === null) return;
+    if (senha !== '4512') { alert('Senha incorreta.'); return; }
+    const novosServicos = (local.servicos || []).map(s =>
+      s === servico ? { ...s, status: 'pendente', funcionario: null } : s
+    );
+    db.collection('locais').doc(local.id).update({ servicos: novosServicos });
+    entradas = entradas.filter(e =>
+      !(e.firestoreLocalId === local.id && nomeAbrev(e.servico) === nomeAbrev(servico.nome))
+    );
+    renderizarFolha();
+    atualizarHeader();
+    return;
+  }
 
   const key = `${el.dataset.localid}::${el.dataset.svidx}`;
   if (servicosSelecionados.has(key)) {
