@@ -1,8 +1,8 @@
-const VERSION = "folha-v4.28";
+const VERSION = "folha-v4.29";
 const ASSETS = [
   "./index.html",
   "./style.css?v=4.19",
-  "./app.js?v=4.28"
+  "./app.js?v=4.29"
 ];
 
 self.addEventListener("install", e => {
@@ -24,9 +24,16 @@ self.addEventListener("activate", e => {
 });
 
 self.addEventListener("fetch", e => {
-  if (e.request.mode === "navigate") {
-    e.respondWith(fetch(e.request).catch(() => caches.match("./index.html")));
-    return;
-  }
-  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+  // Tudo: cache primeiro, rede como fallback (abre instantâneo)
+  e.respondWith(
+    caches.match(e.request).then(cached => {
+      const networkFetch = fetch(e.request).then(response => {
+        if (response.ok) {
+          caches.open(VERSION).then(c => c.put(e.request, response.clone()));
+        }
+        return response;
+      }).catch(() => cached);
+      return cached || networkFetch;
+    })
+  );
 });
