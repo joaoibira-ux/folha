@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.13-debug";
+const VERSAO = "4.13";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -705,7 +705,7 @@ async function fecharFolha() {
       if ((r.origem || '') !== 'ANE->ADIANTAMENTO') return;
       const desc = r.descricao || '';
       if (!desc.startsWith('Adiantamento: ')) return;
-      const nome = desc.slice('Adiantamento: '.length).split(/\s*[—–\-]/)[0].trim();
+      const nome = desc.slice('Adiantamento: '.length).split(/\s*[—–\-]/)[0].trim().normalize('NFC');
       if (!nome) return;
       adiantamentosMap.set(nome, (adiantamentosMap.get(nome) || 0) + (r.saida || 0));
     });
@@ -713,15 +713,6 @@ async function fecharFolha() {
 
   entradas = [];
   atualizarHeader();
-
-  // DEBUG temporário — remove após verificar
-  const debugInfo = {
-    totalAdiantamentos: adiantamentosMap.size,
-    nomes: [...adiantamentosMap.entries()].map(([k,v]) => `"${k}"=R$${v}`).join(' | '),
-    nomesNaFolha: gruposData.map(g => `"${g.funcionario.nome}"`).join(' | ')
-  };
-  alert(`DEBUG v4.13\nTotal lancamentos: ${_debugTotal}\nAdiantamentos encontrados: ${debugInfo.totalAdiantamentos}\n${debugInfo.nomes}\nErro: ${_debugErr}\n\nFuncionários:\n${debugInfo.nomesNaFolha}`);
-
   mostrarComprovante(gruposData, encarregadoCache, valorEncarregado, nServMapa, totalGeral, pagamentos, adiantamentosMap);
 }
 
@@ -745,7 +736,7 @@ function mostrarComprovante(gruposData, encData, valorEnc, nServ, totalGeral, pa
   let totalDeducoes = 0;
   const gruposHtml = gruposData.map(g => {
     const sub    = g.itens.reduce((a, e) => a + Number(e.valor), 0);
-    const adiant = adiantamentosMap.get(g.funcionario.nome) || 0;
+    const adiant = adiantamentosMap.get((g.funcionario.nome || '').normalize('NFC')) || 0;
     const liquido = sub - adiant;
     if (adiant > 0) totalDeducoes += adiant;
     const isAjud = ehAjudante(g.funcionario.cargo);
