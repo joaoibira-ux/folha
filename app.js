@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.9";
+const VERSAO = "4.10";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -703,7 +703,7 @@ async function fecharFolha() {
       const r = d.data();
       // Filtra por data apenas se soubermos quando a folha foi criada
       if (folhaCriadoEm && r.criadoEm && r.criadoEm.toMillis() <= folhaCriadoEm.toMillis()) return;
-      const m = (r.descricao || '').match(/^Adiantamento: (.+?) — /);
+      const m = (r.descricao || '').match(/^Adiantamento: (.+?) —/);
       if (!m) return;
       const nome = m[1].trim();
       adiantamentosMap.set(nome, (adiantamentosMap.get(nome) || 0) + (r.saida || 0));
