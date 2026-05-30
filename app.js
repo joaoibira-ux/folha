@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.19";
+const VERSAO = "4.20";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -123,7 +123,7 @@ function abrirCalendario(func) {
   renderCalendario();
   const n   = diasSelecionados.size;
   const btn = document.getElementById('btn-ok-cal');
-  btn.disabled    = n === 0;
+  btn.disabled    = false;
   btn.textContent = n > 0 ? `OK (${n})` : 'OK';
   mostrarView('view-calendario');
 }
@@ -161,12 +161,12 @@ function toggleDia(key) {
   renderCalendario();
   const n   = diasSelecionados.size;
   const btn = document.getElementById('btn-ok-cal');
-  btn.disabled    = n === 0;
+  btn.disabled    = false;
   btn.textContent = n > 0 ? `OK (${n})` : 'OK';
 }
 
 function confirmarDias() {
-  if (!diasSelecionados.size) return;
+  if (!diasSelecionados.size) { mostrarView('view-folha'); return; }
   const diaria  = funcionarioAtual.salario || 0;
   const funcKey = funcionarioAtual.id || funcionarioAtual.nome;
   // Remove entradas existentes deste ajudante para substituir pela nova seleção
@@ -452,12 +452,12 @@ function atualizarBtnOk() {
   const btn = document.getElementById('btn-ok');
   const n = servicosSelecionados.size;
   btn.textContent = n > 0 ? `OK (${n})` : 'OK';
-  btn.disabled = n === 0;
+  btn.disabled = false;
 }
 
 // ── Confirmar seleção → adiciona na folha ──────────────────
 function confirmarSelecao() {
-  if (!servicosSelecionados.size) return;
+  if (!servicosSelecionados.size) { mostrarView('view-folha'); return; }
 
   servicosSelecionados.forEach(({ local, servico }) => {
     entradas.push({
