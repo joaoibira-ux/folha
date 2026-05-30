@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.25";
+const VERSAO = "4.26";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -923,5 +923,16 @@ function mostrarSucesso(pagamentos, totalGeral) {
 }
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js');
+  navigator.serviceWorker.register('./sw.js').then(reg => {
+    reg.addEventListener('updatefound', () => {
+      const newSW = reg.installing;
+      newSW.addEventListener('statechange', () => {
+        if (newSW.state === 'activated') {
+          window.location.reload();
+        }
+      });
+    });
+  });
+  // Verifica atualizações pendentes ao abrir
+  navigator.serviceWorker.ready.then(reg => reg.update());
 }
