@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.23";
+const VERSAO = "4.24";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -594,6 +594,8 @@ function renderizarFolha() {
 }
 
 function atualizarHeader() {
+  const barra = document.getElementById('barra-funcionarios');
+  if (barra) barra.style.display = entradas.length ? 'flex' : 'none';
   const el = document.getElementById('total-header');
   if (!entradas.length) { el.textContent = ''; return; }
   const totalProd = entradas.reduce((acc, e) => acc + Number(e.valor), 0);

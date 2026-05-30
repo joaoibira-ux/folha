@@ -16,6 +16,11 @@
 
   <!-- View 1: Funcionários (padrão) -->
   <div id="view-funcionarios" class="view ativa">
+    <div class="mapa-barra" id="barra-funcionarios" style="display:none">
+      <button class="btn-voltar" onclick="mostrarView('view-folha')">&#8592;</button>
+      <span class="func-atual">Selecionar funcionário</span>
+      <span></span>
+    </div>
     <div id="lista-funcionarios"></div>
   </div>
 
@@ -64,6 +69,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="app.js?v=4.23"></script>
+  <script src="app.js?v=4.24"></script>
 </body>
 </html>
