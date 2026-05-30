@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.10";
+const VERSAO = "4.11";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -703,9 +703,10 @@ async function fecharFolha() {
       const r = d.data();
       // Filtra por data apenas se soubermos quando a folha foi criada
       if (folhaCriadoEm && r.criadoEm && r.criadoEm.toMillis() <= folhaCriadoEm.toMillis()) return;
-      const m = (r.descricao || '').match(/^Adiantamento: (.+?) —/);
-      if (!m) return;
-      const nome = m[1].trim();
+      const desc = r.descricao || '';
+      if (!desc.startsWith('Adiantamento: ')) return;
+      const nome = desc.slice('Adiantamento: '.length).split(/\s*[—–-]/)[0].trim();
+      if (!nome) return;
       adiantamentosMap.set(nome, (adiantamentosMap.get(nome) || 0) + (r.saida || 0));
     });
   } catch(e) {}
