@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.16";
+const VERSAO = "4.17";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -605,12 +605,27 @@ async function fecharFolha() {
   btnFechar.disabled = true;
   btnFechar.textContent = 'Salvando...';
 
-  // Guarda data de criação da folha ANTES do batch (para filtrar adiantamentos)
+  // Guarda data de criação e garante diárias de ajudantes no entradas
   let folhaCriadoEm = null;
   if (folhaAbertaId) {
     try {
       const fDoc = await db.collection('folhas').doc(folhaAbertaId).get();
-      if (fDoc.exists && fDoc.data().criadoEm) folhaCriadoEm = fDoc.data().criadoEm;
+      if (fDoc.exists) {
+        if (fDoc.data().criadoEm) folhaCriadoEm = fDoc.data().criadoEm;
+        // Se diárias de ajudantes ainda não foram carregadas pelo fetch em background, carrega agora
+        const ajudantesJaCarregados = new Set(
+          entradas.filter(e => !e.firestoreLocalId).map(e => e.funcionario.id || e.funcionario.nome)
+        );
+        (fDoc.data().grupos || []).forEach(g => {
+          if (g.isEncarregado || !ehAjudante(g.funcionario.cargo)) return;
+          const key = g.funcionario.id || g.funcionario.nome;
+          if (ajudantesJaCarregados.has(key)) return;
+          (g.itens || []).forEach(item => {
+            if (item.firestoreLocalId) return;
+            entradas.push({ funcionario: g.funcionario, firestoreLocalId: '', localId: item.localId, servico: item.servico, valor: Number(item.valor) });
+          });
+        });
+      }
     } catch(e) {}
   }
 
