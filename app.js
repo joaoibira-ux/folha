@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.8";
+const VERSAO = "4.9";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -695,21 +695,20 @@ async function fecharFolha() {
 
   // Busca adiantamentos lançados no caixa após a abertura desta folha
   const adiantamentosMap = new Map(); // nome → total saída
-  if (folhaCriadoEm) {
-    try {
-      const adSnap = await db.collection('lancamentos')
-        .where('origem', '==', 'ANE->ADIANTAMENTO')
-        .get();
-      adSnap.docs.forEach(d => {
-        const r = d.data();
-        if (!r.criadoEm || r.criadoEm.toMillis() <= folhaCriadoEm.toMillis()) return;
-        const m = (r.descricao || '').match(/^Adiantamento: (.+?) — /);
-        if (!m) return;
-        const nome = m[1].trim();
-        adiantamentosMap.set(nome, (adiantamentosMap.get(nome) || 0) + (r.saida || 0));
-      });
-    } catch(e) {}
-  }
+  try {
+    const adSnap = await db.collection('lancamentos')
+      .where('origem', '==', 'ANE->ADIANTAMENTO')
+      .get();
+    adSnap.docs.forEach(d => {
+      const r = d.data();
+      // Filtra por data apenas se soubermos quando a folha foi criada
+      if (folhaCriadoEm && r.criadoEm && r.criadoEm.toMillis() <= folhaCriadoEm.toMillis()) return;
+      const m = (r.descricao || '').match(/^Adiantamento: (.+?) — /);
+      if (!m) return;
+      const nome = m[1].trim();
+      adiantamentosMap.set(nome, (adiantamentosMap.get(nome) || 0) + (r.saida || 0));
+    });
+  } catch(e) {}
 
   entradas = [];
   atualizarHeader();
