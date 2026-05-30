@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.26";
+const VERSAO = "4.27";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -927,12 +927,8 @@ if ('serviceWorker' in navigator) {
     reg.addEventListener('updatefound', () => {
       const newSW = reg.installing;
       newSW.addEventListener('statechange', () => {
-        if (newSW.state === 'activated') {
-          window.location.reload();
-        }
+        if (newSW.state === 'activated') window.location.reload();
       });
     });
   });
-  // Verifica atualizações pendentes ao abrir
-  navigator.serviceWorker.ready.then(reg => reg.update());
 }
