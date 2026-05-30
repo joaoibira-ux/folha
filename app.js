@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.7";
+const VERSAO = "4.8";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -582,12 +582,21 @@ function imprimirFolha() {
 }
 
 // ── Fechar Folha → salva no Firestore + marca serviços ────
-function fecharFolha() {
+async function fecharFolha() {
   if (!entradas.length) return;
 
   const btnFechar = document.querySelector('.btn-fechar-folha');
   btnFechar.disabled = true;
   btnFechar.textContent = 'Salvando...';
+
+  // Guarda data de criação da folha ANTES do batch (para filtrar adiantamentos)
+  let folhaCriadoEm = null;
+  if (folhaAbertaId) {
+    try {
+      const fDoc = await db.collection('folhas').doc(folhaAbertaId).get();
+      if (fDoc.exists && fDoc.data().criadoEm) folhaCriadoEm = fDoc.data().criadoEm;
+    } catch(e) {}
+  }
 
   // Agrupa por funcionário para o documento da folha
   const grupos = new Map();
@@ -661,34 +670,53 @@ function fecharFolha() {
     batch.update(db.collection('locais').doc(firestoreId), { servicos: novosServicos });
   });
 
-  batch.commit()
-    .then(() => {
-      folhaAbertaId = null;
+  try {
+    await batch.commit();
+  } catch(e) {
+    btnFechar.disabled = false;
+    btnFechar.textContent = 'Atualizar a Folha';
+    alert('Erro ao salvar. Tente novamente.');
+    return;
+  }
 
-      // Captura dados antes de limpar
-      const pagamentos  = [];
-      const gruposData  = [];
-      if (encarregadoCache) {
-        pagamentos.push({ nome: encarregadoCache.nome, cargo: encarregadoCache.cargo || 'encarregado', valor: valorEncarregado });
-      }
-      [...grupos.values()].forEach(g => {
-        const subtotal = g.itens.reduce((a, e) => a + Number(e.valor), 0);
-        pagamentos.push({ nome: g.funcionario.nome, cargo: g.funcionario.cargo || '', valor: subtotal });
-        gruposData.push({ funcionario: g.funcionario, itens: g.itens });
+  folhaAbertaId = null;
+
+  // Captura dados antes de limpar
+  const pagamentos = [];
+  const gruposData = [];
+  if (encarregadoCache) {
+    pagamentos.push({ nome: encarregadoCache.nome, cargo: encarregadoCache.cargo || 'encarregado', valor: valorEncarregado });
+  }
+  [...grupos.values()].forEach(g => {
+    const subtotal = g.itens.reduce((a, e) => a + Number(e.valor), 0);
+    pagamentos.push({ nome: g.funcionario.nome, cargo: g.funcionario.cargo || '', valor: subtotal });
+    gruposData.push({ funcionario: g.funcionario, itens: g.itens });
+  });
+
+  // Busca adiantamentos lançados no caixa após a abertura desta folha
+  const adiantamentosMap = new Map(); // nome → total saída
+  if (folhaCriadoEm) {
+    try {
+      const adSnap = await db.collection('lancamentos')
+        .where('origem', '==', 'ANE->ADIANTAMENTO')
+        .get();
+      adSnap.docs.forEach(d => {
+        const r = d.data();
+        if (!r.criadoEm || r.criadoEm.toMillis() <= folhaCriadoEm.toMillis()) return;
+        const m = (r.descricao || '').match(/^Adiantamento: (.+?) — /);
+        if (!m) return;
+        const nome = m[1].trim();
+        adiantamentosMap.set(nome, (adiantamentosMap.get(nome) || 0) + (r.saida || 0));
       });
+    } catch(e) {}
+  }
 
-      entradas = [];
-      atualizarHeader();
-      mostrarComprovante(gruposData, encarregadoCache, valorEncarregado, nServMapa, totalGeral, pagamentos);
-    })
-    .catch(() => {
-      btnFechar.disabled = false;
-      btnFechar.textContent = 'Fechar Folha';
-      alert('Erro ao salvar. Tente novamente.');
-    });
+  entradas = [];
+  atualizarHeader();
+  mostrarComprovante(gruposData, encarregadoCache, valorEncarregado, nServMapa, totalGeral, pagamentos, adiantamentosMap);
 }
 
-function mostrarComprovante(gruposData, encData, valorEnc, nServ, totalGeral, pagamentos) {
+function mostrarComprovante(gruposData, encData, valorEnc, nServ, totalGeral, pagamentos, adiantamentosMap = new Map()) {
 
   const hoje = new Date().toLocaleDateString('pt-BR');
 
@@ -705,24 +733,42 @@ function mostrarComprovante(gruposData, encData, valorEnc, nServ, totalGeral, pa
       </div>`;
   }
 
+  let totalDeducoes = 0;
   const gruposHtml = gruposData.map(g => {
     const sub    = g.itens.reduce((a, e) => a + Number(e.valor), 0);
+    const adiant = adiantamentosMap.get(g.funcionario.nome) || 0;
+    const liquido = sub - adiant;
+    if (adiant > 0) totalDeducoes += adiant;
     const isAjud = ehAjudante(g.funcionario.cargo);
     const itens  = g.itens.map(e => `
       <div class="cp-item">
         <span>${escHtml(e.localId)} · ${escHtml(isAjud ? e.servico : nomeAbrev(e.servico))}</span>
         <span>${fmtMoeda(e.valor)}</span>
       </div>`).join('');
+    const adiantHtml = adiant > 0 ? `
+      <div class="cp-item" style="color:#ef9a9a">
+        <span>(-) Adiantamento</span>
+        <span>- ${fmtMoeda(adiant)}</span>
+      </div>` : '';
     return `
       <div class="cp-grupo">
         <div class="cp-func">${escHtml(g.funcionario.nome)} <span class="cp-cargo">${escHtml(g.funcionario.cargo||'')}</span></div>
         ${itens}
-        <div class="cp-sub"><span>Subtotal</span><span>${fmtMoeda(sub)}</span></div>
+        ${adiantHtml}
+        <div class="cp-sub"><span>Subtotal</span><span>${fmtMoeda(adiant > 0 ? liquido : sub)}</span></div>
       </div>`;
   }).join('');
 
-  window._sucPag   = pagamentos;
-  window._sucTotal = totalGeral;
+  const totalLiquido = totalGeral - totalDeducoes;
+
+  // Ajusta pagamentos para tela de sucesso (desconta adiantamentos por funcionário)
+  const pagamentosAjustados = pagamentos.map(p => ({
+    ...p,
+    valor: p.valor - (adiantamentosMap.get(p.nome) || 0)
+  }));
+
+  window._sucPag   = pagamentosAjustados;
+  window._sucTotal = totalLiquido;
 
   document.body.innerHTML = `
     <style>
@@ -758,7 +804,7 @@ function mostrarComprovante(gruposData, encData, valorEnc, nServ, totalGeral, pa
       </div>
       <div class="cp-footer">
         <span class="cp-total-l">TOTAL GERAL</span>
-        <span class="cp-total-v">${fmtMoeda(totalGeral)}</span>
+        <span class="cp-total-v">${fmtMoeda(totalLiquido)}</span>
       </div>
     </div>`;
 
