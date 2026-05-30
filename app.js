@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.14";
+const VERSAO = "4.15";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -361,7 +361,7 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
           const found = lookup.get(`${e.firestoreLocalId}:${e.servico}`)
                      || lookup.get(`${e.firestoreLocalId}:${nomeAbrev(e.servico)}`);
           if (!found) return e;
-          const novoFn    = e.funcionario.nome !== '(desconhecido)' ? e.funcionario : (found.fn || e.funcionario);
+          const novoFn    = found.fn ? { ...e.funcionario, cargo: found.fn.cargo || e.funcionario.cargo || '' } : e.funcionario;
           const novoValor = found.valor !== undefined ? found.valor : e.valor;
           if (novoFn !== e.funcionario || novoValor !== e.valor) refinado = true;
           return { ...e, funcionario: novoFn, valor: novoValor };
@@ -665,7 +665,7 @@ async function fecharFolha() {
     const novosServicos = (local.servicos || []).map(s => {
       if (!servicoFuncMap.has(s.nome)) return s;
       const func = servicoFuncMap.get(s.nome);
-      return { ...s, status: 'em_pagamento', funcionario: { id: func.id || '', nome: func.nome } };
+      return { ...s, status: 'em_pagamento', funcionario: { id: func.id || '', nome: func.nome, cargo: func.cargo || '' } };
     });
     batch.update(db.collection('locais').doc(firestoreId), { servicos: novosServicos });
   });
