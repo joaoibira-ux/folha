@@ -1,14 +1,24 @@
-const VERSION = "folha-v4.29";
+const VERSION = "folha-v4.30";
 const ASSETS = [
   "./index.html",
   "./style.css?v=4.19",
-  "./app.js?v=4.29"
+  "./app.js?v=4.30"
+];
+const FIREBASE_ASSETS = [
+  "https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js",
+  "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"
 ];
 
 self.addEventListener("install", e => {
   e.waitUntil(
     caches.open(VERSION)
       .then(c => c.addAll(ASSETS))
+      .then(() => {
+        // Cacheia Firebase em segundo plano (não bloqueia install se CDN falhar)
+        caches.open(VERSION).then(c =>
+          FIREBASE_ASSETS.forEach(url => c.add(url).catch(() => {}))
+        );
+      })
       .then(() => self.skipWaiting())
   );
 });
