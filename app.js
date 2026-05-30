@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.12-debug";
+const VERSAO = "4.13-debug";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -696,17 +696,16 @@ async function fecharFolha() {
   // Busca adiantamentos lançados no caixa após a abertura desta folha
   const adiantamentosMap = new Map(); // nome → total saída
   let _debugErr = 'nenhum';
+  let _debugTotal = 0;
   try {
-    const adSnap = await db.collection('lancamentos')
-      .where('origem', '==', 'ANE->ADIANTAMENTO')
-      .get();
+    const adSnap = await db.collection('lancamentos').limit(100).get();
+    _debugTotal = adSnap.size;
     adSnap.docs.forEach(d => {
       const r = d.data();
-      // Filtra por data apenas se soubermos quando a folha foi criada
-      if (folhaCriadoEm && r.criadoEm && r.criadoEm.toMillis() <= folhaCriadoEm.toMillis()) return;
+      if ((r.origem || '') !== 'ANE->ADIANTAMENTO') return;
       const desc = r.descricao || '';
       if (!desc.startsWith('Adiantamento: ')) return;
-      const nome = desc.slice('Adiantamento: '.length).split(/\s*[—–-]/)[0].trim();
+      const nome = desc.slice('Adiantamento: '.length).split(/\s*[—–\-]/)[0].trim();
       if (!nome) return;
       adiantamentosMap.set(nome, (adiantamentosMap.get(nome) || 0) + (r.saida || 0));
     });
@@ -721,7 +720,7 @@ async function fecharFolha() {
     nomes: [...adiantamentosMap.entries()].map(([k,v]) => `"${k}"=R$${v}`).join(' | '),
     nomesNaFolha: gruposData.map(g => `"${g.funcionario.nome}"`).join(' | ')
   };
-  alert(`DEBUG\nAdiantamentos encontrados: ${debugInfo.totalAdiantamentos}\n${debugInfo.nomes}\nErro: ${_debugErr}\n\nFuncionários na folha:\n${debugInfo.nomesNaFolha}`);
+  alert(`DEBUG v4.13\nTotal lancamentos: ${_debugTotal}\nAdiantamentos encontrados: ${debugInfo.totalAdiantamentos}\n${debugInfo.nomes}\nErro: ${_debugErr}\n\nFuncionários:\n${debugInfo.nomesNaFolha}`);
 
   mostrarComprovante(gruposData, encarregadoCache, valorEncarregado, nServMapa, totalGeral, pagamentos, adiantamentosMap);
 }
