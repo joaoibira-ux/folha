@@ -12,7 +12,7 @@ const db = firebase.firestore();
 // Persistência offline: dados ficam no IndexedDB, próxima abertura é instantânea
 db.enablePersistence({ synchronizeTabs: false }).catch(() => {});
 
-const VERSAO = "4.34";
+const VERSAO = "4.35";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -28,6 +28,7 @@ let encarregadoCache     = null;
 function mostrarView(id) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('ativa'));
   document.getElementById(id).classList.add('ativa');
+  if (id === 'view-funcionarios') renderFuncionarios();
 }
 
 // ── Utilitários ────────────────────────────────────────────
@@ -83,8 +84,9 @@ db.collection('funcionarios').onSnapshot(snap => {
     .find(f => f.ativo !== false && (f.cargo || '').toLowerCase().includes('encarregado')) || null;
 });
 
-let folhaCarregada   = false;
-let folhaCriadoEm    = null;
+let folhaCarregada      = false;
+let folhaCriadoEm       = null;
+let apenasProducao      = false; // true quando vindo do mapa (sem ajudantes)
 let calAno           = new Date().getFullYear();
 let calMesAtual      = new Date().getMonth();
 let diasSelecionados  = new Map(); // key → 'full' | 'half'
@@ -206,13 +208,12 @@ function confirmarDias() {
 }
 
 // ── View Funcionários ──────────────────────────────────────
-db.collection('funcionarios').orderBy('nome').onSnapshot(snap => {
-  const lista = document.getElementById('lista-funcionarios');
-  lista.innerHTML = '';
+let _todosFunc = [];
 
-  const cargosValidos = ['pintor', 'raspador', 'ajudante'];
-  const docs = snap.docs
-    .map(d => ({ id: d.id, ...d.data() }))
+function renderFuncionarios() {
+  const lista = document.getElementById('lista-funcionarios');
+  const cargosValidos = apenasProducao ? ['pintor', 'raspador'] : ['pintor', 'raspador', 'ajudante'];
+  const docs = _todosFunc
     .filter(f => f.ativo !== false)
     .filter(f => cargosValidos.some(c => (f.cargo || '').toLowerCase().includes(c)));
 
@@ -220,7 +221,7 @@ db.collection('funcionarios').orderBy('nome').onSnapshot(snap => {
     lista.innerHTML = '<p class="vazio">Nenhum funcionário cadastrado.</p>';
     return;
   }
-
+  lista.innerHTML = '';
   docs.forEach(func => {
     const btn = document.createElement('button');
     btn.className = 'btn-funcionario';
@@ -231,6 +232,11 @@ db.collection('funcionarios').orderBy('nome').onSnapshot(snap => {
     btn.onclick = () => selecionarFuncionario(func);
     lista.appendChild(btn);
   });
+}
+
+db.collection('funcionarios').orderBy('nome').onSnapshot(snap => {
+  _todosFunc = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderFuncionarios();
 });
 
 function selecionarFuncionario(func) {
@@ -453,7 +459,7 @@ function onServicoClick(el) {
 
   const key = `${el.dataset.localid}::${el.dataset.svidx}`;
   if (!servicosSelecionados.has(key)) {
-    if (!funcionarioAtual) { mostrarView('view-funcionarios'); return; }
+    if (!funcionarioAtual) { apenasProducao = true; mostrarView('view-funcionarios'); return; }
     servicosSelecionados.set(key, { local, servico });
   } else {
     servicosSelecionados.delete(key);

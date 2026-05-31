@@ -17,7 +17,7 @@
   <!-- View 1: Funcionários (padrão) -->
   <div id="view-funcionarios" class="view ativa">
     <div class="mapa-barra" id="barra-funcionarios" style="display:none">
-      <button class="btn-voltar" onclick="mostrarView('view-folha')">&#8592;</button>
+      <button class="btn-voltar" onclick="apenasProducao=false;mostrarView('view-folha')">&#8592;</button>
       <span class="func-atual">Selecionar funcionário</span>
       <span></span>
     </div>
@@ -60,7 +60,7 @@
     <div id="folha-documento"></div>
     <div class="folha-acoes">
       <div class="folha-acoes-row">
-        <button class="btn-adicionar" onclick="mostrarView('view-funcionarios')">Funcionários</button>
+        <button class="btn-adicionar" onclick="apenasProducao=false;mostrarView('view-funcionarios')">Funcionários</button>
         <button class="btn-remover"   onclick="mostrarView('view-mapa')">Mapa</button>
       </div>
       <button class="btn-fechar-folha" onclick="fecharFolha()">Relatório/Resumo</button>
@@ -69,6 +69,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="app.js?v=4.34"></script>
+  <script src="app.js?v=4.35"></script>
 </body>
 </html>
