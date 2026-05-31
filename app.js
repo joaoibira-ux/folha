@@ -12,7 +12,7 @@ const db = firebase.firestore();
 // Persistência offline: dados ficam no IndexedDB, próxima abertura é instantânea
 db.enablePersistence({ synchronizeTabs: false }).catch(() => {});
 
-const VERSAO = "4.33";
+const VERSAO = "4.34";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
