@@ -12,7 +12,7 @@ const db = firebase.firestore();
 // Persistência offline: dados ficam no IndexedDB, próxima abertura é instantânea
 db.enablePersistence({ synchronizeTabs: false }).catch(() => {});
 
-const VERSAO = "4.32";
+const VERSAO = "4.33";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -452,10 +452,11 @@ function onServicoClick(el) {
   }
 
   const key = `${el.dataset.localid}::${el.dataset.svidx}`;
-  if (servicosSelecionados.has(key)) {
-    servicosSelecionados.delete(key);
-  } else {
+  if (!servicosSelecionados.has(key)) {
+    if (!funcionarioAtual) { mostrarView('view-funcionarios'); return; }
     servicosSelecionados.set(key, { local, servico });
+  } else {
+    servicosSelecionados.delete(key);
   }
 
   // atualiza visual sem re-renderizar tudo
