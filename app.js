@@ -12,7 +12,7 @@ const db = firebase.firestore();
 // Persistência offline: dados ficam no IndexedDB, próxima abertura é instantânea
 db.enablePersistence({ synchronizeTabs: false }).catch(() => {});
 
-const VERSAO = "4.31";
+const VERSAO = "4.32";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -356,8 +356,9 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
       atualizarHeader();
       mostrarView('view-folha');
 
-      // Em segundo plano: carrega folha doc para refinar fn/valor de itens antigos e pegar ID
-      db.collection('folhas').orderBy('criadoEm', 'desc').limit(1).get().then(fSnap => {
+      // Carrega folha doc via onSnapshot (beneficia do IndexedDB — dispara junto com locais)
+      const unsubFolha = db.collection('folhas').orderBy('criadoEm', 'desc').limit(1).onSnapshot(fSnap => {
+        unsubFolha(); // uma única disparo
         if (fSnap.empty) return;
         folhaAbertaId = fSnap.docs[0].id;
 
