@@ -12,7 +12,7 @@ const db = firebase.firestore();
 // Persistência offline: dados ficam no IndexedDB, próxima abertura é instantânea
 db.enablePersistence({ synchronizeTabs: false }).catch(() => {});
 
-const VERSAO = "4.37";
+const VERSAO = "4.38";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -947,5 +947,7 @@ function mostrarSucesso(pagamentos, totalGeral) {
 }
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js');
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' });
+  // Recarrega uma vez quando novo SW assume o controle (nova versão instalada)
+  navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
 }
