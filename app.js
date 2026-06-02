@@ -12,7 +12,7 @@ const db = firebase.firestore();
 // Persistência offline: dados ficam no IndexedDB, próxima abertura é instantânea
 db.enablePersistence({ synchronizeTabs: false }).catch(() => {});
 
-const VERSAO = "4.35";
+const VERSAO = "4.36";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -343,7 +343,8 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
             firestoreLocalId: doc.id,
             localId:          local.identificacao,
             servico:          s.nome,
-            funcionario:      s.funcionario || null
+            funcionario:      s.funcionario || null,
+            dataRegistro:     s.dataRegistro || null
           });
         }
       });
@@ -356,7 +357,8 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
         firestoreLocalId: s.firestoreLocalId,
         localId:          s.localId,
         servico:          s.servico,
-        valor:            calcValor(s.servico, (s.funcionario || {}).cargo)
+        valor:            calcValor(s.servico, (s.funcionario || {}).cargo),
+        dataRegistro:     s.dataRegistro || null
       }));
       renderizarFolha();
       atualizarHeader();
@@ -372,7 +374,7 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
         (fSnap.docs[0].data().grupos || []).forEach(g => {
           if (g.isEncarregado) return;
           (g.itens || []).forEach(item => {
-            const entry = { fn: g.funcionario, valor: Number(item.valor) };
+            const entry = { fn: g.funcionario, valor: Number(item.valor), dataRegistro: item.dataRegistro || null };
             lookup.set(`${item.firestoreLocalId}:${item.servico}`,            entry);
             lookup.set(`${item.firestoreLocalId}:${nomeAbrev(item.servico)}`, entry);
           });
@@ -387,7 +389,7 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
           const novoFn    = found.fn ? { ...e.funcionario, cargo: found.fn.cargo || e.funcionario.cargo || '' } : e.funcionario;
           const novoValor = found.valor !== undefined ? found.valor : e.valor;
           if (novoFn !== e.funcionario || novoValor !== e.valor) refinado = true;
-          return { ...e, funcionario: novoFn, valor: novoValor };
+          return { ...e, funcionario: novoFn, valor: novoValor, dataRegistro: found.dataRegistro || e.dataRegistro || null };
         });
         // Carrega diárias de ajudantes (firestoreLocalId vazio — não vêm do locais)
         (fSnap.docs[0].data().grupos || []).forEach(g => {
@@ -487,7 +489,8 @@ function confirmarSelecao() {
       firestoreLocalId: local.id,
       localId:          local.identificacao,
       servico:          servico.nome,
-      valor:            calcValor(servico.nome, funcionarioAtual.cargo)
+      valor:            calcValor(servico.nome, funcionarioAtual.cargo),
+      dataRegistro:     new Date().toLocaleDateString('pt-BR')
     });
   });
 
@@ -565,15 +568,16 @@ function renderizarFolha() {
       <tr>
         <td>${escHtml(e.localId)}</td>
         <td>${escHtml(nomeAbrev(e.servico))}</td>
+        <td style="font-size:0.75rem;color:#888">${escHtml(e.dataRegistro || '—')}</td>
         <td class="td-valor">${fmtMoeda(e.valor)}</td>
       </tr>`).join('');
 
     const thead = isAjud
       ? `<tr><th>Data</th><th>Diária</th><th>Valor</th><th></th></tr>`
-      : `<tr><th>Local</th><th>Serviço</th><th>Valor</th></tr>`;
+      : `<tr><th>Local</th><th>Serviço</th><th>Registro</th><th>Valor</th></tr>`;
     const tfoot = isAjud
       ? `<tr><td colspan="3" class="td-sub-label">Subtotal</td><td class="td-sub-valor">${fmtMoeda(subtotal)}</td></tr>`
-      : `<tr><td colspan="2" class="td-sub-label">Subtotal</td><td class="td-sub-valor">${fmtMoeda(subtotal)}</td></tr>`;
+      : `<tr><td colspan="3" class="td-sub-label">Subtotal</td><td class="td-sub-valor">${fmtMoeda(subtotal)}</td></tr>`;
 
     return `
       <div class="grupo-func">
@@ -670,7 +674,7 @@ async function salvarFolha(silencioso = false, completarAjudantes = true) {
   const gruposProducao = [...grupos.values()].map(g => ({
     funcionario: { id: g.funcionario.id || '', nome: g.funcionario.nome, cargo: g.funcionario.cargo || '' },
     subtotal:    g.itens.reduce((acc, e) => acc + Number(e.valor), 0),
-    itens:       g.itens.map(e => ({ firestoreLocalId: e.firestoreLocalId || '', localId: e.localId, servico: e.servico, valor: Number(e.valor) }))
+    itens:       g.itens.map(e => ({ firestoreLocalId: e.firestoreLocalId || '', localId: e.localId, servico: e.servico, valor: Number(e.valor), dataRegistro: e.dataRegistro || null }))
   }));
 
   const grupoEncarregado = encarregadoCache ? [{
@@ -693,7 +697,7 @@ async function salvarFolha(silencioso = false, completarAjudantes = true) {
   const locaisParaAtualizar = new Map();
   entradas.forEach(e => {
     if (!locaisParaAtualizar.has(e.firestoreLocalId)) locaisParaAtualizar.set(e.firestoreLocalId, new Map());
-    locaisParaAtualizar.get(e.firestoreLocalId).set(e.servico, e.funcionario);
+    locaisParaAtualizar.get(e.firestoreLocalId).set(e.servico, { funcionario: e.funcionario, dataRegistro: e.dataRegistro });
   });
 
   const batch = db.batch();
@@ -705,8 +709,12 @@ async function salvarFolha(silencioso = false, completarAjudantes = true) {
     if (!local) return;
     const novosServicos = (local.servicos || []).map(s => {
       if (!servicoFuncMap.has(s.nome)) return s;
-      const func = servicoFuncMap.get(s.nome);
-      return { ...s, status: 'em_pagamento', funcionario: { id: func.id || '', nome: func.nome, cargo: func.cargo || '' } };
+      const entry = servicoFuncMap.get(s.nome);
+      const func  = entry.funcionario;
+      return { ...s, status: 'em_pagamento',
+        funcionario:  { id: func.id || '', nome: func.nome, cargo: func.cargo || '' },
+        dataRegistro: entry.dataRegistro || s.dataRegistro || new Date().toLocaleDateString('pt-BR')
+      };
     });
     batch.update(db.collection('locais').doc(firestoreId), { servicos: novosServicos });
   });
@@ -788,7 +796,7 @@ function mostrarComprovante(gruposData, encData, valorEnc, nServ, totalGeral, pa
     const isAjud = ehAjudante(g.funcionario.cargo);
     const itens  = g.itens.map(e => `
       <div class="cp-item">
-        <span>${escHtml(e.localId)} · ${escHtml(isAjud ? e.servico : nomeAbrev(e.servico))}</span>
+        <span>${escHtml(e.localId)} · ${escHtml(isAjud ? e.servico : nomeAbrev(e.servico))}${!isAjud && e.dataRegistro ? `<span style="color:#4a8a5a;font-size:0.65rem;margin-left:4px">${escHtml(e.dataRegistro)}</span>` : ''}</span>
         <span>${fmtMoeda(e.valor)}</span>
       </div>`).join('');
     const adiantHtml = adiant > 0 ? `
