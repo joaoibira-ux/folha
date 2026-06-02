@@ -12,7 +12,7 @@ const db = firebase.firestore();
 // Persistência offline: dados ficam no IndexedDB, próxima abertura é instantânea
 db.enablePersistence({ synchronizeTabs: false }).catch(() => {});
 
-const VERSAO = "4.36";
+const VERSAO = "4.37";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -87,6 +87,13 @@ db.collection('funcionarios').onSnapshot(snap => {
 let folhaCarregada      = false;
 let folhaCriadoEm       = null;
 let apenasProducao      = false; // true quando vindo do mapa (sem ajudantes)
+let _saveTimer          = null;
+
+function agendarSave() {
+  clearTimeout(_saveTimer);
+  if (!entradas.length) return;
+  _saveTimer = setTimeout(() => salvarFolha(true, false), 1500);
+}
 let calAno           = new Date().getFullYear();
 let calMesAtual      = new Date().getMonth();
 let diasSelecionados  = new Map(); // key → 'full' | 'half'
@@ -204,7 +211,6 @@ function confirmarDias() {
   renderizarFolha();
   atualizarHeader();
   mostrarView('view-folha');
-  salvarFolha(true, false);
 }
 
 // ── View Funcionários ──────────────────────────────────────
@@ -497,7 +503,6 @@ function confirmarSelecao() {
   renderizarFolha();
   atualizarHeader();
   mostrarView('view-folha');
-  salvarFolha(true, false);
 }
 
 function removerDiaria(idx) {
@@ -605,6 +610,7 @@ function renderizarFolha() {
       </div>
     </div>
   `;
+  agendarSave();
 }
 
 function atualizarHeader() {
