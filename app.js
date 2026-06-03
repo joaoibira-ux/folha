@@ -12,7 +12,7 @@ const db = firebase.firestore();
 // Persistência offline: dados ficam no IndexedDB, próxima abertura é instantânea
 db.enablePersistence({ synchronizeTabs: false }).catch(() => {});
 
-const VERSAO = "4.38";
+const VERSAO = "4.39";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -370,9 +370,8 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
       atualizarHeader();
       mostrarView('view-folha');
 
-      // Carrega folha doc via onSnapshot (beneficia do IndexedDB — dispara junto com locais)
-      const unsubFolha = db.collection('folhas').orderBy('criadoEm', 'desc').limit(1).onSnapshot(fSnap => {
-        unsubFolha(); // uma única disparo
+      // Listener permanente — sincroniza em tempo real entre dispositivos
+      db.collection('folhas').orderBy('criadoEm', 'desc').limit(1).onSnapshot(fSnap => {
         if (fSnap.empty) return;
         folhaAbertaId = fSnap.docs[0].id;
 
@@ -386,7 +385,10 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
           });
         });
 
-        // Refina entradas com dados do documento salvo
+        // Remove diárias de ajudantes antigas — serão re-sincronizadas do documento
+        entradas = entradas.filter(e => e.firestoreLocalId);
+
+        // Refina entradas de serviços com dados do documento salvo
         let refinado = false;
         entradas = entradas.map(e => {
           const found = lookup.get(`${e.firestoreLocalId}:${e.servico}`)
@@ -397,7 +399,7 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
           if (novoFn !== e.funcionario || novoValor !== e.valor) refinado = true;
           return { ...e, funcionario: novoFn, valor: novoValor, dataRegistro: found.dataRegistro || e.dataRegistro || null };
         });
-        // Carrega diárias de ajudantes (firestoreLocalId vazio — não vêm do locais)
+        // Sincroniza diárias de ajudantes (firestoreLocalId vazio — não vêm do locais)
         (fSnap.docs[0].data().grupos || []).forEach(g => {
           if (g.isEncarregado || !ehAjudante(g.funcionario.cargo)) return;
           (g.itens || []).forEach(item => {
