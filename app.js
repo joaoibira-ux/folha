@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.48";
+const VERSAO = "4.49";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -409,7 +409,6 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
 
   esconderLoading();
   _locaisCarregado = true;
-  _tentarRelatorio();
 
   // ── Detecção de folha existente — roda na 1ª snapshot ──
   if (!folhaCarregada) {
@@ -500,6 +499,8 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
       atualizarHeader();
     }
   }
+
+  _tentarRelatorio(); // chamado após entradas estar completamente populado
 }, () => {
   document.getElementById("mapa").innerHTML = '<p class="empty">Erro ao conectar.</p>';
 });
