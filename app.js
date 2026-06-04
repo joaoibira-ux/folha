@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.50";
+const VERSAO = "4.51";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -991,18 +991,7 @@ function mostrarSucesso(pagamentos, totalGeral) {
 
       <div style="display:flex;flex-direction:column;align-items:center;padding:18px 16px 14px;
                   background:linear-gradient(160deg,#1e4d2e 0%,#1a3322 100%);flex-shrink:0;">
-        <svg width="54" height="54" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
-          <rect x="4"  y="32" width="22" height="8" rx="2" fill="#a5d6a7"/>
-          <rect x="30" y="32" width="22" height="8" rx="2" fill="#a5d6a7"/>
-          <rect x="4"  y="44" width="10" height="8" rx="2" fill="#66bb6a"/>
-          <rect x="18" y="44" width="22" height="8" rx="2" fill="#a5d6a7"/>
-          <rect x="44" y="44" width="8"  height="8" rx="2" fill="#66bb6a"/>
-          <path d="M28 30 C28 30 15 20 15 11 C15 5 21 1 28 1 C35 1 41 5 41 11 C41 20 28 30 28 30Z" fill="#43a047"/>
-          <path d="M28 30 C28 30 38 22 38 13 C38 7.5 34 3.5 28 2.5" fill="#81c784" opacity="0.4"/>
-          <line x1="28" y1="29" x2="28" y2="32" stroke="#2e7d32" stroke-width="2.5" stroke-linecap="round"/>
-        </svg>
-        <div style="font-size:1.2rem;font-weight:900;letter-spacing:3px;color:#a5d6a7;margin-top:6px;">GREEN WALL</div>
-        <div style="font-size:0.58rem;letter-spacing:2px;color:#4a8a5a;margin-top:1px;">CONSTRUÇÃO E ACABAMENTO</div>
+        <img src="./Logo-gw.png" style="width:80px;height:80px;object-fit:contain;" />
         <div style="margin-top:11px;display:flex;align-items:center;gap:7px;
                     background:rgba(76,175,80,0.18);padding:6px 18px;border-radius:20px;
                     border:1px solid rgba(76,175,80,0.35);">
