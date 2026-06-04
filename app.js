@@ -12,7 +12,7 @@ const db = firebase.firestore();
 // Persistência offline: dados ficam no IndexedDB, próxima abertura é instantânea
 db.enablePersistence({ synchronizeTabs: false }).catch(() => {});
 
-const VERSAO = "4.39";
+const VERSAO = "4.40";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -385,12 +385,10 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
           });
         });
 
-        // Remove diárias de ajudantes antigas — serão re-sincronizadas do documento
-        entradas = entradas.filter(e => e.firestoreLocalId);
-
-        // Refina entradas de serviços com dados do documento salvo
+        // Refina entradas de serviços com dados do documento salvo (ignora ajudantes aqui)
         let refinado = false;
         entradas = entradas.map(e => {
+          if (!e.firestoreLocalId) return e;
           const found = lookup.get(`${e.firestoreLocalId}:${e.servico}`)
                      || lookup.get(`${e.firestoreLocalId}:${nomeAbrev(e.servico)}`);
           if (!found) return e;
@@ -399,19 +397,27 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
           if (novoFn !== e.funcionario || novoValor !== e.valor) refinado = true;
           return { ...e, funcionario: novoFn, valor: novoValor, dataRegistro: found.dataRegistro || e.dataRegistro || null };
         });
-        // Sincroniza diárias de ajudantes (firestoreLocalId vazio — não vêm do locais)
+        // Adiciona diárias de ajudantes do documento que ainda NÃO estão em entradas
+        // (nunca remove entradas locais — evita race condition com agendarSave)
+        const chavesLocais = new Set(
+          entradas.filter(e => !e.firestoreLocalId)
+            .map(e => `${e.funcionario.nome}::${e.localId}::${e.servico}`)
+        );
         (fSnap.docs[0].data().grupos || []).forEach(g => {
           if (g.isEncarregado || !ehAjudante(g.funcionario.cargo)) return;
           (g.itens || []).forEach(item => {
             if (item.firestoreLocalId) return;
-            entradas.push({
-              funcionario:      g.funcionario,
-              firestoreLocalId: '',
-              localId:          item.localId,
-              servico:          item.servico,
-              valor:            Number(item.valor)
-            });
-            refinado = true;
+            const chave = `${g.funcionario.nome}::${item.localId}::${item.servico}`;
+            if (!chavesLocais.has(chave)) {
+              entradas.push({
+                funcionario:      g.funcionario,
+                firestoreLocalId: '',
+                localId:          item.localId,
+                servico:          item.servico,
+                valor:            Number(item.valor)
+              });
+              refinado = true;
+            }
           });
         });
 
