@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.46";
+const VERSAO = "4.47";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -414,7 +414,6 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
   // ── Detecção de folha existente — roda na 1ª snapshot ──
   if (!folhaCarregada) {
     folhaCarregada = true;
-    sincronizarDiaristas(); // carrega diaristas já salvos no Firestore
     const amarelos = [];
     snap.docs.forEach(doc => {
       const local = doc.data();
@@ -432,7 +431,7 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
     });
 
     if (amarelos.length) {
-      // Monta entradas imediatamente com os dados do locais (sem esperar folha doc)
+      // 1. Monta produção
       entradas = amarelos.map(s => ({
         funcionario:      s.funcionario || { nome: '(desconhecido)', cargo: '' },
         firestoreLocalId: s.firestoreLocalId,
@@ -441,6 +440,8 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
         valor:            calcValor(s.servico, (s.funcionario || {}).cargo),
         dataRegistro:     s.dataRegistro || null
       }));
+      // 2. Adiciona diaristas por cima (depois da produção, para não ser sobrescrito)
+      sincronizarDiaristas();
       renderizarFolha();
       atualizarHeader();
       mostrarView('view-folha');
