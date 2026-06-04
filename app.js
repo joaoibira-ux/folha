@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.45";
+const VERSAO = "4.46";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -563,12 +563,31 @@ function confirmarSelecao() {
   renderizarFolha();
   atualizarHeader();
   mostrarView('view-folha');
+  salvarFolha(true, false); // salva ao voltar para a tela da folha
 }
 
-function removerDiaria(idx) {
+async function removerDiaria(idx) {
+  const e = entradas[idx];
+  if (!e) return;
+
+  if (!e.firestoreLocalId) {
+    // Diarista: atualiza a coleção 'diarias' (onSnapshot sincroniza entradas)
+    const docId  = e.funcionario.id || e.funcionario.nome;
+    const docRef = db.collection('diarias').doc(docId);
+    const doc    = await docRef.get().catch(() => null);
+    if (doc && doc.exists) {
+      const newDias = (doc.data().dias || []).filter(d => d.localId !== e.localId);
+      if (newDias.length === 0) await docRef.delete().catch(() => {});
+      else await docRef.update({ dias: newDias }).catch(() => {});
+    }
+    return; // onSnapshot cuida de sincronizar entradas
+  }
+
+  // Produção: remove local e salva imediatamente
   entradas.splice(idx, 1);
   renderizarFolha();
   atualizarHeader();
+  if (entradas.length) salvarFolha(true, false);
 }
 
 function fmtMoeda(v) {
@@ -670,7 +689,6 @@ function renderizarFolha() {
       </div>
     </div>
   `;
-  agendarSave();
 }
 
 function atualizarHeader() {
