@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.52";
+const VERSAO = "4.53";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -989,15 +989,10 @@ function mostrarSucesso(pagamentos, totalGeral) {
     <div style="display:flex;flex-direction:column;height:100dvh;background:#0d1f14;color:#e8f5e9;
                 font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden;">
 
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;
                   background:linear-gradient(160deg,#1e4d2e 0%,#1a3322 100%);flex-shrink:0;">
-        <div style="display:flex;align-items:center;gap:7px;
-                    background:rgba(76,175,80,0.18);padding:6px 18px;border-radius:20px;
-                    border:1px solid rgba(76,175,80,0.35);">
-          <span style="color:#69f0ae;font-size:1rem;font-weight:900;">✓</span>
-          <span style="font-size:0.88rem;font-weight:700;color:#c8e6c9;">Folha Fechada com Sucesso!</span>
-        </div>
-        <img src="./Logo-gw.png" style="width:54px;height:54px;object-fit:contain;" />
+        <img src="./Logo-gw.png" style="width:54px;height:54px;object-fit:contain;flex-shrink:0;" />
+        <span style="font-size:0.95rem;font-weight:800;color:#c8e6c9;letter-spacing:0.5px;">Previsão da Folha de Pagamento</span>
       </div>
 
       <div style="padding:5px 0 0;background:#1a3322;flex-shrink:0;">
