@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.43";
+const VERSAO = "4.44";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -105,6 +105,33 @@ db.collection('funcionarios').onSnapshot(snap => {
   encarregadoCache = snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
     .find(f => f.ativo !== false && (f.cargo || '').toLowerCase().includes('encarregado')) || null;
+});
+
+// ── Diaristas — mesma fonte que produção (onSnapshot em tempo real) ──────
+let _diariasCache = [];
+
+function sincronizarDiaristas() {
+  entradas = entradas.filter(e => e.firestoreLocalId);
+  _diariasCache.forEach(doc => {
+    (doc.dias || []).forEach(d => {
+      entradas.push({
+        funcionario:      { id: doc.funcionarioId || '', nome: doc.funcionarioNome, cargo: doc.cargo || '' },
+        firestoreLocalId: '',
+        localId:          d.localId,
+        servico:          'Diária',
+        valor:            d.valor
+      });
+    });
+  });
+}
+
+db.collection('diarias').onSnapshot(snap => {
+  _diariasCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (folhaCarregada) {
+    sincronizarDiaristas();
+    renderizarFolha();
+    atualizarHeader();
+  }
 });
 
 let folhaCarregada      = false;
@@ -212,27 +239,29 @@ function toggleDia(key) {
   btn.textContent = n > 0 ? `OK (${n})` : 'OK';
 }
 
-function confirmarDias() {
+async function confirmarDias() {
   const diaria  = funcionarioAtual.salario || 0;
-  const funcKey = funcionarioAtual.id || funcionarioAtual.nome;
-  // Remove todas as entradas deste ajudante e re-adiciona apenas os dias selecionados
-  entradas = entradas.filter(e => {
-    const eKey = e.funcionario.id || e.funcionario.nome;
-    return !(eKey === funcKey && !e.firestoreLocalId);
-  });
-  [...diasSelecionados.entries()].sort((a, b) => a[0].localeCompare(b[0])).forEach(([key, state]) => {
-    const [, mes, dia] = key.split('-');
-    const meio  = state === 'half';
-    entradas.push({
-      funcionario:      funcionarioAtual,
-      firestoreLocalId: '',
-      localId:          `${dia}/${mes}${meio ? ' ½' : ''}`,
-      servico:          'Diária',
-      valor:            meio ? diaria / 2 : diaria
+  const docId   = funcionarioAtual.id || funcionarioAtual.nome;
+  const dias = [...diasSelecionados.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, state]) => {
+      const [, mes, dia] = key.split('-');
+      const meio = state === 'half';
+      return { localId: `${dia}/${mes}${meio ? ' ½' : ''}`, valor: meio ? diaria / 2 : diaria };
     });
-  });
-  renderizarFolha();
-  atualizarHeader();
+
+  const docRef = db.collection('diarias').doc(docId);
+  if (dias.length === 0) {
+    await docRef.delete().catch(() => {});
+  } else {
+    await docRef.set({
+      funcionarioId:   funcionarioAtual.id   || '',
+      funcionarioNome: funcionarioAtual.nome,
+      cargo:           funcionarioAtual.cargo || '',
+      diaria,
+      dias
+    });
+  }
   mostrarView('view-folha');
 }
 
@@ -365,6 +394,7 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
   // ── Detecção de folha existente — roda na 1ª snapshot ──
   if (!folhaCarregada) {
     folhaCarregada = true;
+    sincronizarDiaristas(); // carrega diaristas já salvos no Firestore
     const amarelos = [];
     snap.docs.forEach(doc => {
       const local = doc.data();
@@ -410,7 +440,7 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
           });
         });
 
-        // Refina entradas de serviços com dados do documento salvo (ignora ajudantes aqui)
+        // Refina apenas entradas de produção (funcionário, valor, dataRegistro)
         let refinado = false;
         entradas = entradas.map(e => {
           if (!e.firestoreLocalId) return e;
@@ -421,29 +451,6 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
           const novoValor = found.valor !== undefined ? found.valor : e.valor;
           if (novoFn !== e.funcionario || novoValor !== e.valor) refinado = true;
           return { ...e, funcionario: novoFn, valor: novoValor, dataRegistro: found.dataRegistro || e.dataRegistro || null };
-        });
-        // Adiciona diárias de ajudantes do documento que ainda NÃO estão em entradas
-        // (nunca remove entradas locais — evita race condition com agendarSave)
-        const chavesLocais = new Set(
-          entradas.filter(e => !e.firestoreLocalId)
-            .map(e => `${e.funcionario.nome}::${e.localId}::${e.servico}`)
-        );
-        (fSnap.docs[0].data().grupos || []).forEach(g => {
-          if (g.isEncarregado || !ehAjudante(g.funcionario.cargo)) return;
-          (g.itens || []).forEach(item => {
-            if (item.firestoreLocalId) return;
-            const chave = `${g.funcionario.nome}::${item.localId}::${item.servico}`;
-            if (!chavesLocais.has(chave)) {
-              entradas.push({
-                funcionario:      g.funcionario,
-                firestoreLocalId: '',
-                localId:          item.localId,
-                servico:          item.servico,
-                valor:            Number(item.valor)
-              });
-              refinado = true;
-            }
-          });
         });
 
         if (refinado) { renderizarFolha(); atualizarHeader(); }
@@ -805,6 +812,10 @@ async function fecharFolha() {
   } catch(e) {}
 
   entradas = [];
+  // Limpa diaristas do Firestore junto com o fechamento da folha
+  db.collection('diarias').get().then(snap => {
+    snap.docs.forEach(d => d.ref.delete());
+  }).catch(() => {});
   atualizarHeader();
   mostrarComprovante(gruposData, encarregadoCache, valorEncarregado, nServMapa, totalGeral, pagamentos, adiantamentosMap);
 }
