@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.49";
+const VERSAO = "4.50";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -938,7 +938,7 @@ function mostrarComprovante(gruposData, encData, valorEnc, nServ, totalGeral, pa
       <div class="cp-header">
         <div class="cp-title">FOLHA DE PAGAMENTO DA PRODUÇÃO</div>
         <div class="cp-meta">
-          <span>Emitida em ${hoje}</span>
+          <span>Emitida em ${hoje} · v${VERSAO}</span>
           <span>toque para continuar →</span>
         </div>
       </div>
