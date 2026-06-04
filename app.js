@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.44";
+const VERSAO = "4.45";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -46,6 +46,20 @@ let locaisCache          = {};
 let servicosCache        = [];
 let folhaAbertaId        = null;
 let encarregadoCache     = null;
+
+// Flags para o link #relatorio — aguarda as 3 fontes de dados
+const _isRelatorioLink    = window.location.hash === '#relatorio';
+let _locaisCarregado      = false;
+let _diariasCarregado     = false;
+let _funcionariosCarregado = false;
+let _relatorioMostrado    = false;
+
+function _tentarRelatorio() {
+  if (!_isRelatorioLink || _relatorioMostrado) return;
+  if (!_locaisCarregado || !_diariasCarregado || !_funcionariosCarregado) return;
+  _relatorioMostrado = true;
+  verRelatorio();
+}
 
 // ── Navegação ──────────────────────────────────────────────
 function mostrarView(id) {
@@ -105,6 +119,8 @@ db.collection('funcionarios').onSnapshot(snap => {
   encarregadoCache = snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
     .find(f => f.ativo !== false && (f.cargo || '').toLowerCase().includes('encarregado')) || null;
+  _funcionariosCarregado = true;
+  _tentarRelatorio();
 });
 
 // ── Diaristas — mesma fonte que produção (onSnapshot em tempo real) ──────
@@ -127,11 +143,13 @@ function sincronizarDiaristas() {
 
 db.collection('diarias').onSnapshot(snap => {
   _diariasCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  _diariasCarregado = true;
   if (folhaCarregada) {
     sincronizarDiaristas();
     renderizarFolha();
     atualizarHeader();
   }
+  _tentarRelatorio();
 });
 
 let folhaCarregada      = false;
@@ -390,6 +408,8 @@ db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
   render(snap.docs.map(d => ({ id: d.id, ...d.data() })));
 
   esconderLoading();
+  _locaisCarregado = true;
+  _tentarRelatorio();
 
   // ── Detecção de folha existente — roda na 1ª snapshot ──
   if (!folhaCarregada) {
@@ -990,54 +1010,64 @@ function mostrarSucesso(pagamentos, totalGeral) {
   setTimeout(() => window.close(), 6000);
 }
 
-// ── Ver relatório da última folha salva (link direto #relatorio) ──────────
+// ── Ver relatório (link direto #relatorio) ────────────────────────────────
+// Usa dados ao vivo de entradas (locais + diarias). Se não há folha aberta,
+// cai para o último documento salvo em 'folhas'.
 async function verRelatorio() {
-  try {
-    const fSnap = await db.collection('folhas').orderBy('criadoEm', 'desc').limit(1).get();
-    if (fSnap.empty) { alert('Nenhuma folha salva ainda.'); return; }
+  let gruposData, nServMapa, totalGeral, valorEncarregado;
 
-    const folha  = fSnap.docs[0].data();
-    const grupos = folha.grupos || [];
-    const totalGeral = folha.totalGeral || 0;
-
-    const grupoEnc      = grupos.find(g => g.isEncarregado);
-    const valorEncarregado = grupoEnc ? (grupoEnc.subtotal || 0) : 0;
-    const nServMapa     = grupoEnc
-      ? Math.round(((grupoEnc.itens || []).find(i => (i.servico || '').includes('serv')) || {}).valor / 5 || 0)
-      : 0;
-
-    const gruposData = grupos
-      .filter(g => !g.isEncarregado)
-      .map(g => ({ funcionario: g.funcionario, itens: g.itens || [] }));
-
-    const pagamentos = [];
-    if (encarregadoCache) pagamentos.push({ nome: encarregadoCache.nome, cargo: encarregadoCache.cargo || 'encarregado', valor: valorEncarregado });
-    gruposData.forEach(g => {
-      const sub = g.itens.reduce((a, e) => a + Number(e.valor), 0);
-      pagamentos.push({ nome: g.funcionario.nome, cargo: g.funcionario.cargo || '', valor: sub });
+  if (entradas.length > 0) {
+    // Folha aberta — dados ao vivo, sempre consistentes entre dispositivos
+    const grupos = new Map();
+    entradas.forEach(e => {
+      const key = e.funcionario.id || e.funcionario.nome;
+      if (!grupos.has(key)) grupos.set(key, { funcionario: e.funcionario, itens: [] });
+      grupos.get(key).itens.push(e);
     });
-
-    const adiantamentosMap = new Map();
+    nServMapa        = entradas.filter(e => e.firestoreLocalId).length;
+    const totalProd  = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
+    valorEncarregado = encarregadoCache
+      ? ((encarregadoCache.salario || 0) / 2) + (5 * nServMapa) : 0;
+    totalGeral       = totalProd + valorEncarregado;
+    gruposData       = [...grupos.values()].map(g => ({ funcionario: g.funcionario, itens: g.itens }));
+  } else {
+    // Sem folha aberta — lê o último documento salvo
     try {
-      const adSnap = await db.collection('lancamentos').limit(100).get();
-      adSnap.docs.forEach(d => {
-        const r = d.data();
-        if ((r.origem || '') !== 'ANE->ADIANTAMENTO') return;
-        const desc = r.descricao || '';
-        if (!desc.startsWith('Adiantamento: ')) return;
-        const nome = desc.slice('Adiantamento: '.length).split(/\s*[—–\-]/)[0].trim().normalize('NFC');
-        if (!nome) return;
-        adiantamentosMap.set(nome, (adiantamentosMap.get(nome) || 0) + (r.saida || 0));
-      });
-    } catch(e) {}
+      const fSnap = await db.collection('folhas').orderBy('criadoEm', 'desc').limit(1).get();
+      if (fSnap.empty) { alert('Nenhuma folha encontrada.'); return; }
+      const folha   = fSnap.docs[0].data();
+      const grupos  = folha.grupos || [];
+      const grupoEnc = grupos.find(g => g.isEncarregado);
+      valorEncarregado = grupoEnc ? (grupoEnc.subtotal || 0) : 0;
+      nServMapa = grupoEnc
+        ? Math.round(((grupoEnc.itens || []).find(i => (i.servico || '').includes('serv')) || {}).valor / 5 || 0) : 0;
+      totalGeral = folha.totalGeral || 0;
+      gruposData = grupos.filter(g => !g.isEncarregado).map(g => ({ funcionario: g.funcionario, itens: g.itens || [] }));
+    } catch(e) { alert('Erro ao carregar relatório.'); return; }
+  }
 
-    mostrarComprovante(gruposData, encarregadoCache, valorEncarregado, nServMapa, totalGeral, pagamentos, adiantamentosMap);
-  } catch(e) { alert('Erro ao carregar relatório.'); }
-}
+  const pagamentos = [];
+  if (encarregadoCache) pagamentos.push({ nome: encarregadoCache.nome, cargo: encarregadoCache.cargo || 'encarregado', valor: valorEncarregado });
+  gruposData.forEach(g => {
+    const sub = g.itens.reduce((a, e) => a + Number(e.valor), 0);
+    pagamentos.push({ nome: g.funcionario.nome, cargo: g.funcionario.cargo || '', valor: sub });
+  });
 
-if (window.location.hash === '#relatorio') {
-  const _aguardar = () => { folhaCarregada ? verRelatorio() : setTimeout(_aguardar, 300); };
-  _aguardar();
+  const adiantamentosMap = new Map();
+  try {
+    const adSnap = await db.collection('lancamentos').limit(100).get();
+    adSnap.docs.forEach(d => {
+      const r = d.data();
+      if ((r.origem || '') !== 'ANE->ADIANTAMENTO') return;
+      const desc = r.descricao || '';
+      if (!desc.startsWith('Adiantamento: ')) return;
+      const nome = desc.slice('Adiantamento: '.length).split(/\s*[—–\-]/)[0].trim().normalize('NFC');
+      if (!nome) return;
+      adiantamentosMap.set(nome, (adiantamentosMap.get(nome) || 0) + (r.saida || 0));
+    });
+  } catch(e) {}
+
+  mostrarComprovante(gruposData, encarregadoCache, valorEncarregado, nServMapa, totalGeral, pagamentos, adiantamentosMap);
 }
 
 if ('serviceWorker' in navigator) {
