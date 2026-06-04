@@ -12,7 +12,7 @@ const db = firebase.firestore();
 // Persistência offline: dados ficam no IndexedDB, próxima abertura é instantânea
 db.enablePersistence({ synchronizeTabs: false }).catch(() => {});
 
-const VERSAO = "4.40";
+const VERSAO = "4.41";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Estado ─────────────────────────────────────────────────
@@ -952,6 +952,56 @@ function mostrarSucesso(pagamentos, totalGeral) {
       </div>
     </div>`;
   setTimeout(() => window.close(), 6000);
+}
+
+// ── Ver relatório da última folha salva (link direto #relatorio) ──────────
+async function verRelatorio() {
+  try {
+    const fSnap = await db.collection('folhas').orderBy('criadoEm', 'desc').limit(1).get();
+    if (fSnap.empty) { alert('Nenhuma folha salva ainda.'); return; }
+
+    const folha  = fSnap.docs[0].data();
+    const grupos = folha.grupos || [];
+    const totalGeral = folha.totalGeral || 0;
+
+    const grupoEnc      = grupos.find(g => g.isEncarregado);
+    const valorEncarregado = grupoEnc ? (grupoEnc.subtotal || 0) : 0;
+    const nServMapa     = grupoEnc
+      ? Math.round(((grupoEnc.itens || []).find(i => (i.servico || '').includes('serv')) || {}).valor / 5 || 0)
+      : 0;
+
+    const gruposData = grupos
+      .filter(g => !g.isEncarregado)
+      .map(g => ({ funcionario: g.funcionario, itens: g.itens || [] }));
+
+    const pagamentos = [];
+    if (encarregadoCache) pagamentos.push({ nome: encarregadoCache.nome, cargo: encarregadoCache.cargo || 'encarregado', valor: valorEncarregado });
+    gruposData.forEach(g => {
+      const sub = g.itens.reduce((a, e) => a + Number(e.valor), 0);
+      pagamentos.push({ nome: g.funcionario.nome, cargo: g.funcionario.cargo || '', valor: sub });
+    });
+
+    const adiantamentosMap = new Map();
+    try {
+      const adSnap = await db.collection('lancamentos').limit(100).get();
+      adSnap.docs.forEach(d => {
+        const r = d.data();
+        if ((r.origem || '') !== 'ANE->ADIANTAMENTO') return;
+        const desc = r.descricao || '';
+        if (!desc.startsWith('Adiantamento: ')) return;
+        const nome = desc.slice('Adiantamento: '.length).split(/\s*[—–\-]/)[0].trim().normalize('NFC');
+        if (!nome) return;
+        adiantamentosMap.set(nome, (adiantamentosMap.get(nome) || 0) + (r.saida || 0));
+      });
+    } catch(e) {}
+
+    mostrarComprovante(gruposData, encarregadoCache, valorEncarregado, nServMapa, totalGeral, pagamentos, adiantamentosMap);
+  } catch(e) { alert('Erro ao carregar relatório.'); }
+}
+
+if (window.location.hash === '#relatorio') {
+  const _aguardar = () => { folhaCarregada ? verRelatorio() : setTimeout(_aguardar, 300); };
+  _aguardar();
 }
 
 if ('serviceWorker' in navigator) {
