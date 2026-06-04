@@ -1,8 +1,8 @@
-const VERSION = "folha-v4.47";
+const VERSION = "folha-v4.48";
 const ASSETS = [
   "./index.html",
   "./style.css?v=4.19",
-  "./app.js?v=4.47"
+  "./app.js?v=4.48"
 ];
 const FIREBASE_ASSETS = [
   "https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js",

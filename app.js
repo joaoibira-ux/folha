@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.47";
+const VERSAO = "4.48";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -1035,16 +1035,34 @@ function mostrarSucesso(pagamentos, totalGeral) {
 async function verRelatorio() {
   let gruposData, nServMapa, totalGeral, valorEncarregado;
 
-  if (entradas.length > 0) {
-    // Folha aberta — dados ao vivo, sempre consistentes entre dispositivos
+  const temProducao  = entradas.some(e => e.firestoreLocalId);
+  const temDiaristas = _diariasCache.length > 0;
+
+  if (temProducao || temDiaristas) {
+    // Folha aberta — lê produção de entradas e diaristas de _diariasCache diretamente
     const grupos = new Map();
-    entradas.forEach(e => {
+
+    // Produção (entradas com firestoreLocalId)
+    entradas.filter(e => e.firestoreLocalId).forEach(e => {
       const key = e.funcionario.id || e.funcionario.nome;
       if (!grupos.has(key)) grupos.set(key, { funcionario: e.funcionario, itens: [] });
       grupos.get(key).itens.push(e);
     });
+
+    // Diaristas (diretamente de _diariasCache — sem depender do timing de sincronizarDiaristas)
+    _diariasCache.forEach(doc => {
+      const func = { id: doc.funcionarioId || '', nome: doc.funcionarioNome, cargo: doc.cargo || '' };
+      const key  = doc.funcionarioId || doc.funcionarioNome;
+      if (!grupos.has(key)) grupos.set(key, { funcionario: func, itens: [] });
+      (doc.dias || []).forEach(d => {
+        grupos.get(key).itens.push({
+          funcionario: func, firestoreLocalId: '', localId: d.localId, servico: 'Diária', valor: d.valor
+        });
+      });
+    });
+
     nServMapa        = entradas.filter(e => e.firestoreLocalId).length;
-    const totalProd  = entradas.reduce((acc, e) => acc + Number(e.valor), 0);
+    const totalProd  = [...grupos.values()].reduce((acc, g) => acc + g.itens.reduce((s, e) => s + Number(e.valor), 0), 0);
     valorEncarregado = encarregadoCache
       ? ((encarregadoCache.salario || 0) / 2) + (5 * nServMapa) : 0;
     totalGeral       = totalProd + valorEncarregado;
@@ -1055,13 +1073,13 @@ async function verRelatorio() {
       const fSnap = await db.collection('folhas').orderBy('criadoEm', 'desc').limit(1).get();
       if (fSnap.empty) { alert('Nenhuma folha encontrada.'); return; }
       const folha   = fSnap.docs[0].data();
-      const grupos  = folha.grupos || [];
-      const grupoEnc = grupos.find(g => g.isEncarregado);
+      const gList   = folha.grupos || [];
+      const grupoEnc = gList.find(g => g.isEncarregado);
       valorEncarregado = grupoEnc ? (grupoEnc.subtotal || 0) : 0;
       nServMapa = grupoEnc
         ? Math.round(((grupoEnc.itens || []).find(i => (i.servico || '').includes('serv')) || {}).valor / 5 || 0) : 0;
       totalGeral = folha.totalGeral || 0;
-      gruposData = grupos.filter(g => !g.isEncarregado).map(g => ({ funcionario: g.funcionario, itens: g.itens || [] }));
+      gruposData = gList.filter(g => !g.isEncarregado).map(g => ({ funcionario: g.funcionario, itens: g.itens || [] }));
     } catch(e) { alert('Erro ao carregar relatório.'); return; }
   }
 
