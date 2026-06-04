@@ -10,8 +10,33 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.42";
+const VERSAO = "4.43";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
+
+// ── Loading overlay ───────────────────────────────────────────
+const _loMsgs = [
+  'Buscando dados atualizados...',
+  'Verificando serviços em andamento...',
+  'Sincronizando funcionários...',
+  'Conectando ao servidor...',
+  'Pode demorar em redes lentas...',
+  'Ainda carregando, aguarde...'
+];
+let _loIdx = 0, _loTimer = setInterval(() => {
+  _loIdx = (_loIdx + 1) % _loMsgs.length;
+  const el = document.getElementById('lo-msg');
+  if (!el) { clearInterval(_loTimer); return; }
+  el.style.opacity = '0';
+  setTimeout(() => { if (el) { el.textContent = _loMsgs[_loIdx]; el.style.opacity = '1'; } }, 300);
+}, 3000);
+
+function esconderLoading() {
+  clearInterval(_loTimer);
+  const lo = document.getElementById('lo');
+  if (!lo) return;
+  lo.style.opacity = '0';
+  setTimeout(() => { if (lo.parentNode) lo.parentNode.removeChild(lo); }, 420);
+}
 
 // ── Estado ─────────────────────────────────────────────────
 let entradas             = [];
@@ -335,7 +360,9 @@ function render(data) {
 db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
   render(snap.docs.map(d => ({ id: d.id, ...d.data() })));
 
-  // ── Detecção de folha existente (usa cache offline — roda na 1ª snapshot) ──
+  esconderLoading();
+
+  // ── Detecção de folha existente — roda na 1ª snapshot ──
   if (!folhaCarregada) {
     folhaCarregada = true;
     const amarelos = [];

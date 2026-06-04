@@ -9,6 +9,32 @@
 </head>
 <body>
 
+  <!-- Loading overlay — animação local, sem rede -->
+  <div id="lo">
+    <style>
+      #lo{position:fixed;inset:0;background:#1a3322;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#a5d6a7;gap:0;transition:opacity .4s}
+      @keyframes lo-ring{0%{transform:scale(.8);opacity:.9}100%{transform:scale(2.4);opacity:0}}
+      @keyframes lo-pulse{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
+      .lo-ring{position:absolute;width:72px;height:72px;border-radius:50%;border:1.5px solid #4caf50;animation:lo-ring 2.4s ease-out infinite}
+      .lo-r2{animation-delay:.8s}.lo-r3{animation-delay:1.6s}
+      #lo-msg{transition:opacity .3s}
+    </style>
+    <div style="font-size:.65rem;letter-spacing:4px;color:#2d6b40;margin-bottom:36px;font-weight:800">GREEN WALL</div>
+    <div style="position:relative;width:72px;height:72px;display:flex;align-items:center;justify-content:center;margin-bottom:28px">
+      <div class="lo-ring"></div>
+      <div class="lo-ring lo-r2"></div>
+      <div class="lo-ring lo-r3"></div>
+      <svg width="38" height="38" viewBox="0 0 38 38" style="animation:lo-pulse 2s ease-in-out infinite">
+        <circle cx="19" cy="19" r="15" fill="none" stroke="#388e3c" stroke-width="2"/>
+        <polyline points="11,19 17,25 27,13" fill="none" stroke="#a5d6a7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div style="font-size:.95rem;font-weight:800;letter-spacing:1px;color:#c8e6c9;margin-bottom:6px">FOLHA DE PAGAMENTO</div>
+    <div style="font-size:.72rem;color:#4a8a5a;margin-bottom:28px">da Produção</div>
+    <div id="lo-msg" style="font-size:.8rem;color:#66bb6a;min-height:1.1em;text-align:center;padding:0 40px">Buscando dados atualizados...</div>
+    <div style="font-size:.6rem;color:#243d2a;margin-top:32px">Aguarde — buscando da rede</div>
+  </div>
+
   <header>
     <span>Folha de Pagamento</span>
     <span id="total-header" class="total-header"></span>
@@ -69,6 +95,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="app.js?v=4.42"></script>
+  <script src="app.js?v=4.43"></script>
 </body>
 </html>
