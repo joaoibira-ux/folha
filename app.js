@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.53";
+const VERSAO = "4.54";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -991,7 +991,9 @@ function mostrarSucesso(pagamentos, totalGeral) {
 
       <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;
                   background:linear-gradient(160deg,#1e4d2e 0%,#1a3322 100%);flex-shrink:0;">
-        <img src="./Logo-gw.png" style="width:54px;height:54px;object-fit:contain;flex-shrink:0;" />
+        <a href="/gw/index.html" style="line-height:0;flex-shrink:0;">
+          <img src="./Logo-gw.png" style="width:54px;height:54px;object-fit:contain;" />
+        </a>
         <span style="font-size:0.95rem;font-weight:800;color:#c8e6c9;letter-spacing:0.5px;">Previsão da Folha de Pagamento</span>
       </div>
 
