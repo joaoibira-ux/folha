@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.55";
+const VERSAO = "4.56";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -989,7 +989,7 @@ function mostrarSucesso(pagamentos, totalGeral) {
     <div style="display:flex;flex-direction:column;height:100dvh;background:#0d1f14;color:#e8f5e9;
                 font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden;">
 
-      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;
+      <div style="display:flex;align-items:center;gap:12px;padding:calc(env(safe-area-inset-top, 0px) + 14px) 16px 14px;
                   background:linear-gradient(160deg,#1e4d2e 0%,#1a3322 100%);flex-shrink:0;">
         <a href="/gw/index.html" style="line-height:0;flex-shrink:0;">
           <img src="./Logo-gw.png" style="width:54px;height:54px;object-fit:contain;" />
