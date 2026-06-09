@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.56";
+const VERSAO = "4.57";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -864,20 +864,29 @@ function mostrarComprovante(gruposData, encData, valorEnc, nServ, totalGeral, pa
 
   const hoje = new Date().toLocaleDateString('pt-BR');
 
+  let totalDeducoes = 0;
+
   let encHtml = '';
   if (encData) {
-    const quinzena = (encData.salario || 0) / 2;
-    const bonus    = 5 * nServ;
+    const quinzena  = (encData.salario || 0) / 2;
+    const bonus     = 5 * nServ;
+    const adiantEnc = adiantamentosMap.get((encData.nome || '').normalize('NFC')) || 0;
+    const liquidoEnc = valorEnc - adiantEnc;
+    if (adiantEnc > 0) totalDeducoes += adiantEnc;
+    const adiantEncHtml = adiantEnc > 0 ? `
+      <div class="cp-item" style="color:#ef9a9a">
+        <span>(-) Adiantamento</span>
+        <span>- ${fmtMoeda(adiantEnc)}</span>
+      </div>` : '';
     encHtml = `
       <div class="cp-grupo cp-enc">
         <div class="cp-func">${escHtml(encData.nome)} <span class="cp-cargo">encarregado</span></div>
         <div class="cp-item"><span>Quinzena 50%</span><span>${fmtMoeda(quinzena)}</span></div>
         <div class="cp-item"><span>${nServ} serv × R$5</span><span>${fmtMoeda(bonus)}</span></div>
-        <div class="cp-sub"><span>Subtotal</span><span>${fmtMoeda(valorEnc)}</span></div>
+        ${adiantEncHtml}
+        <div class="cp-sub"><span>Subtotal</span><span>${fmtMoeda(adiantEnc > 0 ? liquidoEnc : valorEnc)}</span></div>
       </div>`;
   }
-
-  let totalDeducoes = 0;
   const gruposHtml = gruposData.map(g => {
     const sub    = g.itens.reduce((a, e) => a + Number(e.valor), 0);
     const adiant = adiantamentosMap.get((g.funcionario.nome || '').normalize('NFC')) || 0;

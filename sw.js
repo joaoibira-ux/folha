@@ -1,8 +1,8 @@
-const VERSION = "folha-v4.56";
+const VERSION = "folha-v4.57";
 const ASSETS = [
   "./index.html",
   "./style.css?v=4.20",
-  "./app.js?v=4.56",
+  "./app.js?v=4.57",
   "./Logo-gw.png"
 ];
 const FIREBASE_ASSETS = [
