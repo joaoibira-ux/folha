@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.57";
+const VERSAO = "4.58";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -839,7 +839,7 @@ async function fecharFolha() {
 
   const adiantamentosMap = new Map();
   try {
-    const adSnap = await db.collection('lancamentos').limit(100).get();
+    const adSnap = await db.collection('lancamentos').get();
     adSnap.docs.forEach(d => {
       const r = d.data();
       if ((r.origem || '') !== 'ANE->ADIANTAMENTO') return;
@@ -917,7 +917,7 @@ function mostrarComprovante(gruposData, encData, valorEnc, nServ, totalGeral, pa
   // Ajusta pagamentos para tela de sucesso (desconta adiantamentos por funcionário)
   const pagamentosAjustados = pagamentos.map(p => ({
     ...p,
-    valor: p.valor - (adiantamentosMap.get(p.nome) || 0)
+    valor: p.valor - (adiantamentosMap.get((p.nome || '').normalize('NFC')) || 0)
   }));
 
   window._sucPag   = pagamentosAjustados;
@@ -1088,7 +1088,7 @@ async function verRelatorio() {
 
   const adiantamentosMap = new Map();
   try {
-    const adSnap = await db.collection('lancamentos').limit(100).get();
+    const adSnap = await db.collection('lancamentos').get();
     adSnap.docs.forEach(d => {
       const r = d.data();
       if ((r.origem || '') !== 'ANE->ADIANTAMENTO') return;
