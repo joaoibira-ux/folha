@@ -6,8 +6,54 @@
   <title>Folha de Pagamento da Produção</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <link rel="stylesheet" href="style.css?v=4.20">
+  <style>
+    html.gw-blocked body > *:not(#aviso-instalacao) { display: none !important; }
+    #aviso-instalacao {
+      display: none; position: fixed; inset: 0; z-index: 99999;
+      flex-direction: column; align-items: center; justify-content: center;
+      padding: 24px; gap: 16px; overflow-y: auto;
+      background:
+        linear-gradient(180deg, rgba(8,20,12,0.6) 0%, rgba(8,20,12,0.85) 100%),
+        url('./Logo-gw.png') center/cover no-repeat scroll;
+    }
+    html.gw-blocked #aviso-instalacao { display: flex; }
+    .aviso-card { width: 100%; max-width: 420px; padding: 16px; border-radius: 22px; }
+    .aviso-card img { width: 100%; display: block; border-radius: 14px; box-shadow: 0 4px 24px rgba(0,0,0,0.5); }
+    .aviso-card img.aviso-logo {
+      width: 50%; margin: 28px auto;
+      border-radius: 0; box-shadow: none;
+      animation: aviso-logo-fade 1.1s ease-in-out;
+    }
+    @keyframes aviso-logo-fade {
+      0%   { opacity: 0; transform: scale(.9); }
+      35%  { opacity: 1; transform: scale(1); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+  </style>
+  <script>
+    (function() {
+      function estaComoApp() {
+        return window.navigator.standalone === true
+          || window.matchMedia('(display-mode: standalone)').matches
+          || window.matchMedia('(display-mode: fullscreen)').matches;
+      }
+      function ehMobile() {
+        return /iPad|iPhone|iPod|Android/.test(navigator.userAgent) && !window.MSStream;
+      }
+      if (ehMobile() && !estaComoApp()) {
+        document.documentElement.classList.add('gw-blocked');
+      }
+    })();
+  </script>
 </head>
 <body>
+
+  <!-- Aviso de instalação -->
+  <div id="aviso-instalacao">
+    <div class="aviso-card">
+      <img id="aviso-img" src="" alt="Instruções" />
+    </div>
+  </div>
 
   <!-- Loading overlay — animação local, sem rede -->
   <div id="lo">
@@ -97,6 +143,25 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="app.js?v=4.58"></script>
+  <script src="app.js?v=4.59"></script>
+  <script>
+    if (document.documentElement.classList.contains('gw-blocked')) {
+      (function() {
+        const isIOS     = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const isAndroid = /Android/.test(navigator.userAgent);
+        const img = document.getElementById('aviso-img');
+        let destino;
+        if (isIOS)          destino = './Aviso iPhone.png';
+        else if (isAndroid) destino = './Aviso Adroide.png';
+        else                destino = './instrucoes_sistema_gw.png';
+        img.src = './Logo-gw.png';
+        img.classList.add('aviso-logo');
+        setTimeout(() => {
+          img.classList.remove('aviso-logo');
+          img.src = destino;
+        }, 1200);
+      })();
+    }
+  </script>
 </body>
 </html>
