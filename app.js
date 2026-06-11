@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.61";
+const VERSAO = "4.62";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -524,7 +524,7 @@ function onServicoClick(el) {
   if (servico.status === 'em_pagamento') {
     const senha = prompt(`Remover "${nomeAbrev(servico.nome)}" do local ${local.identificacao} da folha?\n\nDigite a senha:`);
     if (senha === null) return;
-    if (senha !== '4512') { alert('Senha incorreta.'); return; }
+    if (senha !== '3733') { alert('Senha incorreta.'); return; }
     const novosServicos = (local.servicos || []).map(s =>
       s === servico ? { ...s, status: 'pendente', funcionario: null } : s
     );
