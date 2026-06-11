@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.63";
+const VERSAO = "4.64";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -97,6 +97,13 @@ function nomeAbrev(nome) {
 function nomeMapaServico(s) {
   const disp = servicosCache.find(d => d.id === s.id);
   return disp && disp.nomeMapa ? disp.nomeMapa : nomeAbrev(s.nome);
+}
+
+// Mesmo critério do Mapa, mas a partir do nome completo do serviço (usado na
+// folha/comprovante, onde só o nome — não o id — fica salvo nas entradas)
+function nomeExibicaoServico(nomeCompleto) {
+  const disp = servicosCache.find(d => d.nome === nomeCompleto);
+  return disp && disp.nomeMapa ? disp.nomeMapa : nomeAbrev(nomeCompleto);
 }
 
 function parseId(id) {
@@ -663,7 +670,7 @@ function renderizarFolha() {
       </tr>` : `
       <tr>
         <td>${escHtml(e.localId)}</td>
-        <td>${escHtml(nomeAbrev(e.servico))}</td>
+        <td>${escHtml(nomeExibicaoServico(e.servico))}</td>
         <td style="font-size:0.75rem;color:#888">${escHtml(e.dataRegistro || '—')}</td>
         <td class="td-valor">${fmtMoeda(e.valor)}</td>
       </tr>`).join('');
@@ -905,7 +912,7 @@ function mostrarComprovante(gruposData, encData, valorEnc, nServ, totalGeral, pa
     const isAjud = ehAjudante(g.funcionario.cargo);
     const itens  = g.itens.map(e => `
       <div class="cp-item">
-        <span>${escHtml(e.localId)} · ${escHtml(isAjud ? e.servico : nomeAbrev(e.servico))}${!isAjud && e.dataRegistro ? `<span style="color:#4a8a5a;font-size:0.65rem;margin-left:4px">${escHtml(e.dataRegistro)}</span>` : ''}</span>
+        <span>${escHtml(e.localId)} · ${escHtml(isAjud ? e.servico : nomeExibicaoServico(e.servico))}${!isAjud && e.dataRegistro ? `<span style="color:#4a8a5a;font-size:0.65rem;margin-left:4px">${escHtml(e.dataRegistro)}</span>` : ''}</span>
         <span>${fmtMoeda(e.valor)}</span>
       </div>`).join('');
     const adiantHtml = adiant > 0 ? `
