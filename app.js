@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.59";
+const VERSAO = "4.60";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -44,6 +44,7 @@ let funcionarioAtual     = null;
 let servicosSelecionados = new Map();
 let locaisCache          = {};
 let servicosCache        = [];
+let locaisData           = [];
 let folhaAbertaId        = null;
 let encarregadoCache     = null;
 
@@ -91,6 +92,13 @@ function nomeAbrev(nome) {
   return (nome || "").substring(0, 10);
 }
 
+// Nome a exibir nos quadrados do Mapa: usa "Nome no Mapa" cadastrado em
+// Serviços (quando definido), senão cai na abreviação automática
+function nomeMapaServico(s) {
+  const disp = servicosCache.find(d => d.id === s.id);
+  return disp && disp.nomeMapa ? disp.nomeMapa : nomeAbrev(s.nome);
+}
+
 function parseId(id) {
   const m = id.match(/^([A-Z]+)(\d+)$/);
   return m ? { block: m[1], num: parseInt(m[2]) } : null;
@@ -112,6 +120,7 @@ function calcValor(nomeServico, cargo) {
 // ── Coleção servicos ───────────────────────────────────────
 db.collection('servicos').onSnapshot(snap => {
   servicosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  render(locaisData);
 });
 
 // ── Encarregado ────────────────────────────────────────────
@@ -368,7 +377,7 @@ function renderAptCell(local) {
         return `<div class="apt-serv ${s.status}${sel}${cursor}"
                      data-localid="${escHtml(local.id)}"
                      data-svidx="${i}"
-                     onclick="onServicoClick(this)">${nomeAbrev(s.nome)}</div>`;
+                     onclick="onServicoClick(this)">${escHtml(nomeMapaServico(s))}</div>`;
       }).join("")}
     </div>`;
 }
@@ -405,7 +414,8 @@ function render(data) {
 }
 
 db.collection("locais").orderBy("identificacao", "asc").onSnapshot(snap => {
-  render(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  locaisData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  render(locaisData);
 
   esconderLoading();
   _locaisCarregado = true;
