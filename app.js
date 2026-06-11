@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.64";
+const VERSAO = "4.65";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -112,6 +112,8 @@ function parseId(id) {
 }
 
 function getMdo(nomeServico) {
+  const exato = servicosCache.find(s => s.nome === nomeServico);
+  if (exato) return exato.mdo || 0;
   const ordem = ordemServico(nomeServico);
   const match = servicosCache.find(s => ordemServico(s.nome) === ordem);
   return match ? (match.mdo || 0) : 0;
