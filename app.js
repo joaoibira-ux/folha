@@ -10,7 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const VERSAO = "4.62";
+const VERSAO = "4.63";
 document.querySelector("header span").textContent = `Folha de Pagamento da Produção v${VERSAO}`;
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -254,7 +254,7 @@ function toggleDia(key) {
     if (diasPreCarregados.has(key)) {
       const senha = prompt('Remover este dia da folha?\n\nDigite a senha:');
       if (senha === null) return;
-      if (senha !== '4512') { alert('Senha incorreta.'); return; }
+      if (senha !== '3733') { alert('Senha incorreta.'); return; }
       diasPreCarregados.delete(key);
     }
     diasSelecionados.delete(key);
